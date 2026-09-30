@@ -285,3 +285,7 @@ refcut/
 
 `vendor/davinci-resolve-mcp` is [hiteshK03/davinci-resolve-mcp](https://github.com/hiteshK03/davinci-resolve-mcp)
 (MIT licence), pinned to `mcp<2`, with an added `/refcut/kinetic` endpoint in `CursorBridge.py`.
+
+## License
+
+MIT — see [LICENSE](LICENSE). The bundled `vendor/davinci-resolve-mcp` keeps its own MIT licence ([vendor/davinci-resolve-mcp/LICENSE](vendor/davinci-resolve-mcp/LICENSE)).
