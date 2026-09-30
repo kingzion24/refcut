@@ -1,0 +1,15 @@
+# RefCut web app
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+pillow>=10.0
+numpy>=1.26
+librosa>=0.10
+yt-dlp>=2024.1.1
+
+# Bundled DaVinci Resolve MCP (vendor/davinci-resolve-mcp) — written for mcp v1
+mcp>=1.0.0,<2
+faster-whisper>=1.2.0
+demucs>=4.0.0
+rembg[cpu]>=2.0.50
+soundfile>=0.12.0

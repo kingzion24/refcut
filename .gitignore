@@ -1,0 +1,7 @@
+venv/
+jobs/
+__pycache__/
+*.pyc
+settings.json
+vendor/davinci-resolve-mcp/logs/
+*.zip

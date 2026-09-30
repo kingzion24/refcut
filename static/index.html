@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RefCut</title>
+<style>
+  :root {
+    --bg: #0e0f11; --panel: #16181b; --panel2: #1d2024; --line: #2a2e33;
+    --text: #e8e9eb; --muted: #8b9098; --accent: #ff6a3d; --accent2: #3dd6ff;
+    --ok: #3ddc84; --err: #ff5c5c; --warn: #ffc53d;
+    --r: 10px; --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 22px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 17px; margin: 0; letter-spacing: -.01em; }
+  header h1 span { color: var(--accent); }
+  .health { margin-left: auto; display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px #3ddc8426; }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 0 3px #ffc53d22; }
+  .dot.bad { background: var(--err); box-shadow: 0 0 0 3px #ff5c5c22; }
+  .dot.wait { background: var(--muted); animation: blink 1s infinite alternate; }
+  @keyframes blink { to { opacity: .3; } }
+  .stat-pill { display: flex; align-items: center; gap: 7px; background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    border-radius: 99px; padding: 6px 12px; font: 500 12.5px var(--font); }
+  .stat-pill em { font-style: normal; color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stat-pill:hover { border-color: #3a3f45; }
+  .status-pop { position: absolute; right: 22px; top: 50px; z-index: 5; width: 360px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px; box-shadow: 0 12px 40px #0009; font-size: 13.5px; }
+  .status-pop h4 { margin: 0 0 4px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
+  .status-pop p { margin: 6px 0 12px; color: var(--muted); }
+  .status-pop code { background: var(--panel2); padding: 2px 6px; border-radius: 5px; font-size: 12px; }
+  .status-pop ol { margin: 0 0 12px; padding-left: 18px; color: var(--muted); }
+  header { position: relative; }
+  main { display: grid; grid-template-columns: 380px 1fr; min-height: calc(100vh - 53px); }
+  aside { border-right: 1px solid var(--line); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  section.view { padding: 22px 28px; overflow: auto; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .06em; }
+  input[type=text], textarea { width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    border-radius: 8px; padding: 10px 12px; font: inherit; }
+  textarea { resize: vertical; min-height: 90px; }
+  input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  .drop { border: 1.5px dashed var(--line); border-radius: var(--r); padding: 22px 14px; text-align: center; color: var(--muted);
+    cursor: pointer; transition: .15s; background: var(--panel); }
+  .drop.over, .drop:hover { border-color: var(--accent); color: var(--text); }
+  .drop video { width: 100%; max-height: 220px; border-radius: 6px; margin-top: 8px; background: #000; }
+  .or { text-align: center; font-size: 12px; color: var(--muted); margin: 6px 0; }
+  button { background: var(--accent); color: #111; border: 0; border-radius: 8px; padding: 11px 16px; font: 600 14px var(--font); cursor: pointer; }
+  button.ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+  .jobs { border-top: 1px solid var(--line); padding-top: 14px; }
+  .job { padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .job:hover, .job.active { background: var(--panel2); }
+  .job small { color: var(--muted); display: block; }
+  .empty { color: var(--muted); display: grid; place-items: center; height: 70vh; text-align: center; }
+  .empty h2 { color: var(--text); font-weight: 600; margin: 0 0 6px; }
+  .progress { height: 6px; background: var(--panel2); border-radius: 3px; overflow: hidden; margin: 10px 0 4px; }
+  .progress div { height: 100%; background: var(--accent); transition: width .4s; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; margin-bottom: 16px; }
+  .card h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .intent { font-size: 17px; line-height: 1.55; }
+  .title { font-size: 24px; font-weight: 700; margin: 0 0 6px; letter-spacing: -.02em; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .stat { background: var(--panel2); border-radius: 8px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 18px; }
+  .stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 14px; font-size: 13.5px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+  .tl { position: relative; height: 64px; background: var(--panel2); border-radius: 6px; overflow: hidden; margin: 6px 0 18px; }
+  .tl .seg { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--bg); display: flex; align-items: flex-end;
+    font-size: 10px; padding: 3px; color: #111; font-weight: 600; overflow: hidden; white-space: nowrap; }
+  .tl .sec { position: absolute; top: 0; height: 14px; font-size: 10px; padding: 0 4px; color: var(--text); background: #0008; }
+  .tl .beat { position: absolute; bottom: 0; width: 1px; height: 8px; background: #fff6; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td img { width: 72px; border-radius: 4px; display: block; }
+  .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; }
+  ul.list { margin: 0; padding-left: 18px; }
+  .sheets { display: flex; gap: 10px; overflow-x: auto; }
+  .sheets img { height: 180px; border-radius: 6px; cursor: zoom-in; }
+  .chat { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .msg { padding: 8px 12px; border-radius: 8px; max-width: 80%; }
+  .msg.user { background: var(--panel2); align-self: flex-end; }
+  .msg.claude { background: #ff6a3d1a; color: var(--text); }
+  .log { background: #0a0b0c; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; max-height: 360px; overflow: auto;
+    font: 12px/1.6 ui-monospace, Consolas, monospace; white-space: pre-wrap; }
+  .log .tool { color: var(--accent2); } .log .err { color: var(--err); } .log .done { color: var(--ok); } .log .say { color: var(--text); }
+  .err-box { background: #ff5c5c1a; border: 1px solid #ff5c5c55; color: #ffb3b3; padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--panel2); color: var(--muted); }
+  .lightbox { position: fixed; inset: 0; background: #000d; display: none; place-items: center; z-index: 9; cursor: zoom-out; }
+  .lightbox img { max-width: 95vw; max-height: 95vh; }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+  .tabs button { background: transparent; color: var(--muted); font-weight: 500; padding: 8px; border-radius: 7px; }
+  .tabs button.on { background: var(--panel2); color: var(--text); }
+  body.mode-footage .only-kinetic, body.mode-kinetic .only-footage { display: none !important; }
+  .opt { text-transform: none; letter-spacing: 0; }
+  .hint { color: var(--muted); font-size: 12px; display: block; margin-top: 4px; }
+  select, input[type=number] { width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 9px 10px; font: inherit; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  button.small { padding: 8px 10px; font-size: 13px; white-space: nowrap; }
+  details.settings { border-top: 1px solid var(--line); padding-top: 12px; }
+  details.settings summary { cursor: pointer; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+  .kp-stage-wrap { display: flex; justify-content: center; background: #050505; border-radius: 10px; padding: 14px; }
+  .kp-stage { position: relative; overflow: hidden; border-radius: 4px; box-shadow: 0 0 0 1px #ffffff14; }
+  .kp-el { position: absolute; white-space: pre; text-align: center; line-height: 1.08; will-change: transform, opacity, filter; }
+  .kp-bar { display: flex; gap: 12px; align-items: center; margin-top: 10px; }
+  .kp-bar input[type=range] { flex: 1; accent-color: var(--accent); }
+  .kp-play { width: 44px; padding: 8px 0; }
+  .kp-scenes { display: flex; gap: 3px; margin-top: 8px; }
+  .kp-scenes button { background: var(--panel2); color: var(--muted); font: 500 11px var(--font); padding: 6px 4px; border-radius: 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; min-width: 0; }
+  .kp-scenes button.on { background: var(--accent); color: #111; }
+  .scene { background: var(--panel2); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .scene-head { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+  .scene-head input { font-weight: 600; }
+  .el-row { display: grid; grid-template-columns: 1.6fr .55fr .95fr .5fr .95fr .5fr .7fr; gap: 6px; align-items: start; margin-top: 6px; }
+  .el-row textarea { min-height: 38px; height: 38px; padding: 7px 9px; }
+  .el-row input, .el-row select { padding: 7px 8px; font-size: 12.5px; }
+  .el-head { display: grid; grid-template-columns: 1.6fr .55fr .95fr .5fr .95fr .5fr .7fr; gap: 6px; font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  a.btnlink { color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; text-decoration: none; font-size: 14px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ref<span>Cut</span></h1>
+  <div class="health" id="health">
+    <button class="stat-pill" id="pillClaude"><i class="dot"></i><span>Claude</span><em>checking…</em></button>
+    <button class="stat-pill" id="pillResolve"><i class="dot"></i><span>DaVinci</span><em>checking…</em></button>
+  </div>
+  <div class="status-pop" id="statusPop" hidden></div>
+</header>
+<main>
+  <aside>
+    <div class="tabs" id="modeTabs">
+      <button data-mode="kinetic" class="on">Kinetic text</button>
+      <button data-mode="footage">Edit footage</button>
+    </div>
+    <div>
+      <label>Reference video <span class="only-kinetic opt">(optional)</span></label>
+      <div class="drop" id="drop">Drop a video here or click to choose
+        <input type="file" id="file" accept="video/*" hidden>
+        <div id="preview"></div>
+      </div>
+      <div class="or">or paste a link (TikTok, YouTube, Instagram…)</div>
+      <input type="text" id="url" placeholder="https://…">
+    </div>
+    <div class="only-footage">
+      <label>Your footage folder</label>
+      <input type="text" id="footage" placeholder="D:\Footage\Trip2026">
+    </div>
+    <div>
+      <label>Context <span class="opt">(a line is enough)</span></label>
+      <textarea id="context" placeholder="e.g. same vibe but for my Zanzibar trip, 30s for reels"></textarea>
+    </div>
+    <div class="only-kinetic">
+      <label>Music to sync to <span class="opt">(optional)</span></label>
+      <div class="row"><input type="text" id="musicPath" placeholder="D:\Music\track.mp3 — or">
+        <button class="ghost small" id="musicBtn">Choose…</button><input type="file" id="musicFile" accept="audio/*,video/*" hidden></div>
+      <small class="hint" id="musicName"></small>
+    </div>
+    <div class="only-kinetic grid3">
+      <div><label>Format</label><select id="aspect"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:5</option><option value="4k">4K 16:9</option></select></div>
+      <div><label>FPS</label><select id="fps"><option>30</option><option>24</option><option>25</option><option>60</option></select></div>
+      <div><label>Motion</label><select id="motion"><option value="auto">Auto</option><option value="smooth">Smooth</option><option value="stepped">Stop-motion</option></select></div>
+    </div>
+    <label class="check"><input type="checkbox" id="transcribe" checked> Transcribe speech in reference</label>
+    <button id="go">Analyze &amp; plan</button>
+    <details class="settings"><summary>Fusion settings</summary>
+      <label>Default font</label><input type="text" id="setFont" placeholder="Segoe UI">
+      <label style="margin-top:10px">Text size calibration</label>
+      <div class="row"><input type="number" id="setScale" step="0.01" min="0.05" max="3"><button class="ghost small" id="saveSettings">Save</button></div>
+      <small class="hint">If text in Resolve comes out bigger/smaller than the preview, scale this by the same ratio (e.g. 2× too big → halve it).</small>
+    </details>
+    <div class="jobs"><label>Recent</label><div id="jobs"></div></div>
+  </aside>
+  <section class="view" id="view">
+    <div class="empty"><div><h2>Show it, don't explain it.</h2>
+      Drop a reference, add a line of context.<br>
+      RefCut works out the recipe and builds it in DaVinci Resolve — kinetic type straight into Fusion.</div></div>
+  </section>
+</main>
+<div class="lightbox" id="lightbox"><img></div>
+
+<script type="module">
+import { KineticPlayer } from "/static/kinetic.js";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = t => t == null ? "–" : (+t).toFixed(2) + "s";
+let current = null, poll = null, logFrom = 0, logLines = [];
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { let m = r.statusText; try { m = (await r.json()).detail || m; } catch {} throw new Error(m); }
+  return r.json();
+}
+
+// ---- connection status ----
+const STATUS = {
+  claude: {
+    ok: ["ok", "Connected"], checking: ["wait", "checking…"], logged_out: ["bad", "not logged in"],
+    missing: ["bad", "not installed"], error: ["warn", "error"],
+  },
+  resolve: {
+    connected: ["ok", "Connected"], bridge_off: ["warn", "bridge not started"], not_running: ["bad", "not running"],
+  },
+};
+let lastStatus = null, popFor = null;
+async function health() {
+  try {
+    const s = await api("/api/status"); lastStatus = s;
+    const c = STATUS.claude[s.claude.state] || ["warn", s.claude.state];
+    const r = STATUS.resolve[s.resolve.state] || ["warn", s.resolve.state];
+    setPill("#pillClaude", c[0], c[0] === "ok" && s.claude.version ? `Connected · v${s.claude.version}` : c[1], s.claude.detail);
+    setPill("#pillResolve", r[0], s.resolve.state === "connected" ? (s.resolve.project || "Connected") : r[1], s.resolve.detail);
+    if (popFor) showPop(popFor);
+    document.querySelectorAll("#buildBtn").forEach(b => b.title = s.resolve.state === "connected" ? "" : s.resolve.detail);
+  } catch {
+    setPill("#pillClaude", "bad", "RefCut server offline", ""); setPill("#pillResolve", "bad", "RefCut server offline", "");
+  }
+}
+function setPill(sel, cls, text, title) {
+  const el = $(sel); el.querySelector(".dot").className = "dot " + cls;
+  el.querySelector("em").textContent = text; el.title = title || "";
+}
+function showPop(which) {
+  const s = lastStatus, pop = $("#statusPop"); if (!s) return;
+  popFor = which; pop.hidden = false;
+  if (which === "claude") {
+    const c = s.claude, cls = (STATUS.claude[c.state] || ["warn"])[0];
+    const fix = {
+      missing: `<ol><li>Open PowerShell and run<br><code>irm https://claude.ai/install.ps1 | iex</code></li><li>Run <code>claude</code> once and log in</li><li>Click Re-check</li></ol>`,
+      logged_out: `<ol><li>Open a terminal and run <code>claude</code></li><li>Log in with your Claude account</li><li>Click Re-check</li></ol>`,
+      error: `<p>If this keeps happening, run <code>claude</code> in a terminal to see what it says.</p>`,
+    }[c.state] || "";
+    pop.innerHTML = `<h4><i class="dot ${cls}"></i>Claude ${c.version ? `<span class="pill">v${esc(c.version)}</span>` : ""}</h4>
+      <p>${esc(c.detail)}${c.checked ? ` · checked ${new Date(c.checked * 1000).toLocaleTimeString()}` : ""}</p>${fix}
+      <div class="actions"><button class="ghost small" id="recheckClaude">Re-check</button><button class="ghost small" id="closePop">Close</button></div>`;
+    $("#recheckClaude").onclick = async () => { await api("/api/status/claude", {method: "POST"}); setTimeout(health, 300); };
+  } else {
+    const r = s.resolve, cls = (STATUS.resolve[r.state] || ["warn"])[0];
+    const fix = r.state === "connected" ? "" : `<ol>
+      <li>${r.state === "not_running" ? "Open DaVinci Resolve and a project" : "Resolve is open ✓"}</li>
+      <li>Menu: <b>Workspace → Scripts → CursorBridge</b></li>
+      <li>The Console shows <code>Bridge is running</code> — this turns green within a few seconds</li></ol>
+      <p>Don't see CursorBridge in the menu? Re-run setup.bat, then restart Resolve.</p>`;
+    pop.innerHTML = `<h4><i class="dot ${cls}"></i>DaVinci Resolve</h4><p>${esc(r.detail)}</p>${fix}
+      <div class="actions"><button class="ghost small" id="recheckResolve">Re-check</button><button class="ghost small" id="closePop">Close</button></div>`;
+    $("#recheckResolve").onclick = health;
+  }
+  $("#closePop").onclick = () => { popFor = null; pop.hidden = true; };
+}
+$("#pillClaude").onclick = () => popFor === "claude" ? $("#closePop").click() : showPop("claude");
+$("#pillResolve").onclick = () => popFor === "resolve" ? $("#closePop").click() : showPop("resolve");
+
+// ---- input ----
+const drop = $("#drop"), fileIn = $("#file");
+drop.onclick = e => { if (e.target.tagName !== "VIDEO") fileIn.click(); };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) { fileIn.files = e.dataTransfer.files; showPreview(); } };
+fileIn.onchange = showPreview;
+function showPreview() {
+  const f = fileIn.files[0]; if (!f) return;
+  $("#preview").innerHTML = `<video src="${URL.createObjectURL(f)}" controls muted></video><div>${esc(f.name)}</div>`;
+}
+try { $("#footage").value = localStorage.getItem("refcut.footage") || ""; } catch {}
+
+let mode = "kinetic";
+try { mode = localStorage.getItem("refcut.mode") || "kinetic"; } catch {}
+function setMode(m) {
+  mode = m; document.body.className = "mode-" + m;
+  document.querySelectorAll("#modeTabs button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
+  $("#context").placeholder = m === "kinetic"
+    ? "e.g. launch video for Flowdesk, an AI inbox for teams. 20s, calm then punchy. End on 'Available today.'"
+    : "e.g. same vibe but for my Zanzibar trip, 30s for reels";
+  try { localStorage.setItem("refcut.mode", m); } catch {}
+}
+document.querySelectorAll("#modeTabs button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+setMode(mode);
+
+$("#musicBtn").onclick = () => $("#musicFile").click();
+$("#musicFile").onchange = () => { const f = $("#musicFile").files[0]; $("#musicName").textContent = f ? "Using " + f.name : ""; if (f) $("#musicPath").value = ""; };
+
+async function loadSettings() {
+  try { const s = await api("/api/settings"); $("#setFont").value = s.font; $("#setScale").value = s.text_scale; } catch {}
+}
+$("#saveSettings").onclick = async () => {
+  await api("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({font: $("#setFont").value, text_scale: +$("#setScale").value})});
+  $("#saveSettings").textContent = "Saved"; setTimeout(() => $("#saveSettings").textContent = "Save", 1200);
+};
+loadSettings();
+
+$("#go").onclick = async () => {
+  const fd = new FormData();
+  if (fileIn.files[0]) fd.append("reference", fileIn.files[0]);
+  fd.append("url", $("#url").value);
+  fd.append("footage_dir", $("#footage").value);
+  fd.append("context", $("#context").value);
+  fd.append("transcribe", $("#transcribe").checked);
+  fd.append("mode", mode);
+  if (mode === "kinetic") {
+    if ($("#musicFile").files[0]) fd.append("music", $("#musicFile").files[0]);
+    fd.append("music_path", $("#musicPath").value);
+    fd.append("aspect", $("#aspect").value); fd.append("fps", $("#fps").value); fd.append("motion", $("#motion").value);
+  }
+  try { localStorage.setItem("refcut.footage", $("#footage").value); } catch {}
+  $("#go").disabled = true;
+  try { const {id} = await api("/api/jobs", {method: "POST", body: fd}); open(id); loadJobs(); }
+  catch (e) { alert(e.message); }
+  finally { $("#go").disabled = false; }
+};
+
+async function loadJobs() {
+  const jobs = await api("/api/jobs");
+  $("#jobs").innerHTML = jobs.map(j => `<div class="job ${j.id===current?"active":""}" data-id="${j.id}">
+    ${esc(j.title || j.ref_name || j.id)}<small>${j.mode === "kinetic" ? "kinetic · " : ""}${esc(j.status)} · ${new Date(j.created*1000).toLocaleString()}</small></div>`).join("")
+    || `<div class="job"><small>No jobs yet</small></div>`;
+  document.querySelectorAll(".job[data-id]").forEach(el => el.onclick = () => open(el.dataset.id));
+}
+
+function open(id) {
+  current = id; logFrom = 0; logLines = [];
+  history.replaceState(null, "", "#" + id);
+  clearInterval(poll); refresh(); poll = setInterval(refresh, 1500);
+  loadJobs();
+}
+
+async function refresh() {
+  if (!current) return;
+  const st = await api(`/api/jobs/${current}?log_from=${logFrom}`);
+  logLines.push(...(st.build_log || [])); logFrom = logLines.length;
+  render(st);
+  if (["ready","error","built"].includes(st.status)) { clearInterval(poll); poll = null; loadJobs(); }
+}
+
+// ---- rendering ----
+const file = n => `/api/jobs/${current}/file/${encodeURI(n)}`;
+const SECTION_COLORS = ["#ff6a3d","#3dd6ff","#ffc53d","#b18cff","#3ddc84","#ff7ab8"];
+
+function render(st) {
+  const v = $("#view");
+  if (st.mode === "kinetic" && st.blueprint && st.status !== "analyzing") return renderKinetic(st);
+  kinetic.jid = null; kinetic.player?.destroy(); kinetic.player = null;
+  if (st.status === "analyzing" || (!st.blueprint && st.status !== "error")) {
+    v.innerHTML = `<div class="card"><h3>Working</h3><div>${esc(st.progress)}</div>
+      <div class="progress"><div style="width:${st.pct||0}%"></div></div>
+      <small style="color:var(--muted)">Reference: ${esc(st.ref_name)}</small></div>` + refCard(st);
+    return;
+  }
+  if (st.status === "error" && !st.blueprint) { v.innerHTML = `<div class="err-box">${esc(st.error)}</div>` + refCard(st); return; }
+  const bp = st.blueprint, s = bp.style || {};
+  const clipById = Object.fromEntries((st.footage?.clips || []).map(c => [c.id, c]));
+  v.innerHTML = `
+    ${st.error ? `<div class="err-box">${esc(st.error)}</div>` : ""}
+    <div class="card">
+      <div class="title">${esc(bp.title)}</div>
+      <div class="intent">${esc(bp.intent)}</div>
+    </div>
+    ${bp.questions?.length ? `<div class="card" style="border-color:var(--warn)"><h3>Claude wants to know</h3><ul class="list">${bp.questions.map(q=>`<li>${esc(q)}</li>`).join("")}</ul>
+      <small style="color:var(--muted)">Answer below in "Adjust".</small></div>` : ""}
+    <div class="card"><h3>The recipe</h3>
+      <dl class="kv">
+        ${[["Format",s.format],["Pacing",s.pacing],["Cutting",s.cutting],["Look",s.look],["Text",s.text],["Transitions",s.transitions],["Music",bp.music?.notes]]
+          .filter(([,x])=>x).map(([k,x])=>`<dt>${k}</dt><dd>${esc(x)}</dd>`).join("")}
+      </dl>
+    </div>
+    <div class="card"><h3>New timeline</h3>${timelineBar(bp, st.reference)}
+      <table><tr><th>#</th><th>At</th><th>Dur</th><th>Ref</th><th>Your clip</th><th></th><th>Why</th></tr>
+      ${(bp.timeline||[]).map(t => {
+        const c = clipById[t.clip_id];
+        return `<tr><td>${t.slot}</td><td class="mono">${fmt(t.start)}</td><td class="mono">${fmt(t.dur)}</td>
+          <td>${st.reference ? `<img src="${file(`ref_frames/shot_${String(t.ref_shot).padStart(3,"0")}.jpg`)}" onerror="this.remove()">` : ""}</td>
+          <td>${c ? `<img src="${file(`footage_frames/${c.id}_1.jpg`)}" onerror="this.remove()">` : `<span class="pill">missing</span>`}</td>
+          <td class="mono">${c ? esc(c.name) + `<br>in ${fmt(t.clip_in)}` : ""}</td>
+          <td>${esc(t.why)}${t.text ? `<br><span class="pill">text: ${esc(t.text)}</span>` : ""}</td></tr>`; }).join("")}
+      </table>
+    </div>
+    ${bp.text_overlays?.length ? `<div class="card"><h3>On-screen text</h3><table><tr><th>At</th><th>Dur</th><th>Text</th><th>Style</th></tr>
+      ${bp.text_overlays.map(o=>`<tr><td class="mono">${fmt(o.at)}</td><td class="mono">${fmt(o.dur)}</td><td>${esc(o.text)}</td><td>${esc(o.style)}</td></tr>`).join("")}</table></div>` : ""}
+    <div class="card"><h3>Grade</h3><div>${esc(bp.grade?.description)}</div>
+      ${bp.grade?.cdl ? `<div class="mono" style="margin-top:6px;color:var(--muted)">${Object.entries(bp.grade.cdl).map(([k,x])=>`${k}: ${esc(x)}`).join(" · ")}</div>` : ""}</div>
+    ${list("You'll finish by hand in Resolve", bp.manual_steps)}
+    ${list("Footage you're missing", bp.gaps)}
+    <div class="card"><h3>Adjust</h3>
+      <div class="chat">${(st.chat||[]).map(m=>`<div class="msg ${m.role}">${esc(m.text)}</div>`).join("")}</div>
+      <div class="row"><input type="text" id="refine" placeholder="e.g. make it 20s, open on the drone shot, no text" ${st.status==="refining"?"disabled":""}>
+      <button class="ghost" id="refineBtn" ${st.status==="refining"?"disabled":""}>${st.status==="refining"?"Revising…":"Update"}</button></div>
+    </div>
+    <div class="card"><h3>Build in DaVinci Resolve</h3>
+      <div class="row"><input type="text" id="proj" placeholder="Project name (default: ${esc(bp.title)})">
+      <button id="buildBtn" ${["building","refining"].includes(st.status)?"disabled":""}>${st.status==="building"?"Building…":st.status==="built"?"Rebuild":"Build it"}</button></div>
+      <small style="color:var(--muted);display:block;margin-top:8px">Resolve must be open with Workspace → Scripts → CursorBridge running.</small>
+      ${logLines.length ? `<div class="log" id="log" style="margin-top:12px">${logLines.map(l=>`<div class="${l.kind}">${l.kind==="tool"?"→ ":l.kind==="err"?"✗ ":l.kind==="done"?"✓ ":""}${esc(l.text)}</div>`).join("")}</div>` : ""}
+    </div>
+    ${refCard(st)}`;
+  const log = $("#log"); if (log) log.scrollTop = log.scrollHeight;
+  $("#refineBtn").onclick = doRefine;
+  $("#refine").onkeydown = e => { if (e.key === "Enter") doRefine(); };
+  $("#buildBtn").onclick = doBuild;
+  document.querySelectorAll(".sheets img").forEach(im => im.onclick = () => { $("#lightbox img").src = im.src; $("#lightbox").style.display = "grid"; });
+}
+
+function list(title, items) {
+  return items?.length ? `<div class="card"><h3>${title}</h3><ul class="list">${items.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>` : "";
+}
+
+function timelineBar(bp, ref) {
+  const tl = bp.timeline || []; if (!tl.length) return "";
+  const total = Math.max(...tl.map(t => t.start + t.dur), 0.01);
+  const secs = (bp.structure||[]).map((s,i)=>`<div class="sec" style="left:${s.start/total*100}%">${esc(s.section)}</div>`).join("");
+  const segs = tl.map((t,i) => {
+    const sec = (bp.structure||[]).findIndex(s => t.start >= s.start && t.start < s.end);
+    return `<div class="seg" title="${esc(t.why)}" style="left:${t.start/total*100}%;width:${t.dur/total*100}%;background:${SECTION_COLORS[(sec<0?0:sec)%6]}">${t.slot}</div>`; }).join("");
+  const beats = (ref?.audio?.beat_times || []).filter(b => b < total).map(b=>`<div class="beat" style="left:${b/total*100}%"></div>`).join("");
+  return `<div class="tl">${segs}${secs}${beats}</div>`;
+}
+
+function refCard(st) {
+  const r = st.reference; if (!r) return "";
+  const a = r.audio || {};
+  return `<div class="card"><h3>What RefCut measured in the reference</h3>
+    <div class="stats">
+      ${stat(r.video?.aspect, "aspect")}${stat(r.video?.fps, "fps")}${stat(fmt(r.video?.duration), "length")}
+      ${stat(r.shot_count, "shots")}${stat(fmt(r.pacing?.avg_shot_sec), "avg shot")}${stat(r.pacing?.cuts_per_minute, "cuts / min")}
+      ${a.tempo_bpm ? stat(a.tempo_bpm, "bpm") : ""}${a.cuts_on_beat_ratio != null ? stat(Math.round(a.cuts_on_beat_ratio*100)+"%", "cuts on beat") : ""}
+      ${r.look?.warmth != null ? stat(r.look.warmth > 0.03 ? "warm" : r.look.warmth < -0.03 ? "cool" : "neutral", "tone") : ""}
+      ${r.speech ? stat(r.speech.segments?.length || "–", "speech lines") : ""}
+    </div>
+    <div class="sheets" style="margin-top:12px">${(r.contact_sheets||[]).concat(st.footage?.contact_sheets||[]).map(s=>`<img src="${file(s)}">`).join("")}</div>
+  </div>`;
+}
+const stat = (v, k) => `<div class="stat"><b>${esc(v ?? "–")}</b><span>${k}</span></div>`;
+
+async function doRefine() {
+  const msg = $("#refine").value.trim(); if (!msg) return;
+  try { await api(`/api/jobs/${current}/refine`, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({message: msg})}); }
+  catch (e) { return alert(e.message); }
+  clearInterval(poll); poll = setInterval(refresh, 1500); refresh();
+}
+async function doBuild() {
+  try { await api(`/api/jobs/${current}/build`, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({project: $("#proj").value})}); }
+  catch (e) { return alert(e.message); }
+  logFrom = 0; logLines = [];
+  clearInterval(poll); poll = setInterval(refresh, 1200); refresh();
+}
+$("#lightbox").onclick = () => $("#lightbox").style.display = "none";
+
+// ---- kinetic mode ----
+const kinetic = { jid: null, bp: null, player: null, saveTimer: null };
+const IN_TYPES = ["blur_in","rise","fade","punch","cascade","cut","grow","drop","slide_left","slide_right","track_in","tilt_in"];
+const OUT_TYPES = ["","blur_out","fade","rise","cut","shrink","punch_out","drop","slide_left","slide_right","track_out"];
+const opt = (list, v) => list.map(x => `<option value="${x}" ${x === (v ?? "") ? "selected" : ""}>${x || "hold"}</option>`).join("");
+
+function renderKinetic(st) {
+  const v = $("#view");
+  const bpJson = JSON.stringify(st.blueprint);
+  const fresh = kinetic.jid !== st.id || !$("#kroot");
+  if (fresh || (bpJson !== kinetic.bpJson && !kinetic.dirty)) {
+    if (fresh) {
+      kinetic.player?.destroy();
+      v.innerHTML = `<div id="kroot">
+        <div id="kerr"></div>
+        <div class="card"><div class="title" id="ktitle"></div><div class="intent" id="kintent"></div></div>
+        <div id="kquestions"></div>
+        <div class="card"><h3>Preview</h3><div id="kplayer"></div>
+          <small class="hint">Same keyframes and easing curves as the Fusion comps. Font rendering and blur look slightly different in the browser.</small></div>
+        <div class="card"><h3>Scenes <span class="opt" style="float:right" id="ktotal"></span></h3><div id="kscenes"></div>
+          <div class="actions" style="margin-top:8px"><button class="ghost small" id="addScene">+ Scene</button></div></div>
+        <div class="card"><h3>Look</h3><div class="grid3" id="klook"></div></div>
+        <div id="knotes"></div>
+        <div class="card"><h3>Adjust</h3><div class="chat" id="kchat"></div>
+          <div class="row"><input type="text" id="refine" placeholder="e.g. make it stop-motion, faster, end on 'Try it free'">
+          <button class="ghost" id="refineBtn">Update</button></div></div>
+        <div class="card"><h3>Build in DaVinci Resolve</h3>
+          <div class="row"><input type="text" id="proj" placeholder="Project name">
+          <button id="buildBtn">Build it</button></div>
+          <div class="actions" style="margin-top:10px">
+            <a class="btnlink" id="dlComps" href="#">Download .comp files</a>
+            <small class="hint" style="margin:0">Resolve must be open with Workspace → Scripts → CursorBridge running.</small></div>
+          <div class="log" id="log" style="margin-top:12px;display:none"></div>
+        </div>
+        ${refCard(st)}
+      </div>`;
+      kinetic.player = new KineticPlayer($("#kplayer"));
+      $("#refineBtn").onclick = doRefine;
+      $("#refine").onkeydown = e => { if (e.key === "Enter") doRefine(); };
+      $("#buildBtn").onclick = doBuild;
+      $("#addScene").onclick = () => { kinetic.bp.scenes.push({name: "New scene", dur: 1.2, elements: [{text: "New line", x: .5, y: .5, size: .08, in: {type: "blur_in", at: 0, dur: .6}}]}); drawScenes(); saveSpec(); };
+      document.querySelectorAll(".sheets img").forEach(im => im.onclick = () => { $("#lightbox img").src = im.src; $("#lightbox").style.display = "grid"; });
+    }
+    kinetic.jid = st.id; kinetic.bpJson = bpJson; kinetic.bp = JSON.parse(bpJson);
+    const bp = kinetic.bp;
+    $("#ktitle").textContent = bp.title || "Untitled";
+    $("#kintent").textContent = bp.intent || "";
+    $("#proj").placeholder = `Project name (default: ${bp.title || "RefCut Kinetic"})`;
+    $("#dlComps").href = `/api/jobs/${st.id}/comps.zip`;
+    $("#kquestions").innerHTML = bp.questions?.length ? `<div class="card" style="border-color:var(--warn)"><h3>Claude wants to know</h3><ul class="list">${bp.questions.map(q => `<li>${esc(q)}</li>`).join("")}</ul><small class="hint">Answer in "Adjust".</small></div>` : "";
+    $("#knotes").innerHTML = list("Notes", bp.notes);
+    drawLook(); drawScenes(); loadPreview();
+  }
+  // live bits (every poll)
+  $("#kerr").innerHTML = st.error ? `<div class="err-box">${esc(st.error)}</div>` : "";
+  $("#kchat").innerHTML = (st.chat || []).map(m => `<div class="msg ${m.role}">${esc(m.text)}</div>`).join("");
+  const busy = ["building", "refining"].includes(st.status);
+  $("#refine").disabled = $("#refineBtn").disabled = busy;
+  $("#refineBtn").textContent = st.status === "refining" ? "Revising…" : "Update";
+  $("#buildBtn").disabled = busy;
+  $("#buildBtn").textContent = st.status === "building" ? "Building…" : st.status === "built" ? "Rebuild" : "Build it";
+  const log = $("#log");
+  if (logLines.length) {
+    log.style.display = "block";
+    log.innerHTML = logLines.map(l => `<div class="${l.kind}">${l.kind === "tool" ? "→ " : l.kind === "err" ? "✗ " : l.kind === "done" ? "✓ " : ""}${esc(l.text)}</div>`).join("");
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+async function loadPreview() {
+  try {
+    const p = await api(`/api/jobs/${kinetic.jid}/preview`);
+    kinetic.player.load(p, p.has_music ? `/api/jobs/${kinetic.jid}/music` : null);
+    const t0 = new URLSearchParams(location.search).get("t");       // ?t=4.2 opens the preview at 4.2s
+    if (t0 && !kinetic.seeked) { kinetic.seeked = true; kinetic.player.seek(+t0); }
+    const total = p.scenes.reduce((a, s) => a + s.frames, 0) / p.spec.format.fps;
+    $("#ktotal").textContent = `${p.scenes.length} scenes · ${total.toFixed(1)}s · ${p.spec.format.width}×${p.spec.format.height} @ ${p.spec.format.fps}`;
+  } catch (e) { console.warn(e); }
+}
+
+function drawLook() {
+  const s = kinetic.bp.style;
+  $("#klook").innerHTML = `
+    <div><label>Background</label><input type="color" data-k="background" value="${s.background}"></div>
+    <div><label>Text</label><input type="color" data-k="color" value="${s.color}"></div>
+    <div><label>Accent</label><input type="color" data-k="accent" value="${s.accent}"></div>
+    <div><label>Font</label><input type="text" data-k="font" value="${esc(s.font)}"></div>
+    <div><label>Weight</label><input type="text" data-k="weight" value="${esc(s.weight)}"></div>
+    <div><label>Motion</label><select data-k="motion"><option value="smooth" ${s.motion === "smooth" ? "selected" : ""}>Smooth</option><option value="stepped" ${s.motion === "stepped" ? "selected" : ""}>Stop-motion (on ${s.step_frames}s)</option></select></div>`;
+  $("#klook").querySelectorAll("[data-k]").forEach(inp => inp.oninput = () => {
+    kinetic.bp.style[inp.dataset.k] = inp.value;
+    if (inp.dataset.k === "font" || inp.dataset.k === "weight")   // apply to elements still on the old default
+      kinetic.bp.scenes.forEach(sc => sc.elements.forEach(el => { delete el[inp.dataset.k]; }));
+    saveSpec();
+  });
+}
+
+function drawScenes() {
+  const bp = kinetic.bp;
+  $("#kscenes").innerHTML = bp.scenes.map((sc, i) => `
+    <div class="scene" data-i="${i}">
+      <div class="scene-head"><span class="pill">${i + 1}</span>
+        <input type="text" data-f="name" value="${esc(sc.name)}" style="flex:1">
+        <input type="number" data-f="dur" value="${sc.dur}" step="0.05" min="0.2" style="width:80px" title="Duration (s)">
+        <button class="ghost small" data-act="up" title="Move up">↑</button>
+        <button class="ghost small" data-act="dup" title="Duplicate">⧉</button>
+        <button class="ghost small" data-act="del" title="Delete">✕</button></div>
+      <div class="el-head"><span>Text</span><span>Size</span><span>In</span><span>At</span><span>Out</span><span>Out at</span><span>Color</span></div>
+      ${sc.elements.map((el, j) => `
+        <div class="el-row" data-j="${j}">
+          <textarea data-e="text" style="height:${16 + 21 * Math.max(1, el.text.split("\n").length)}px">${esc(el.text)}</textarea>
+          <input type="number" data-e="size" value="${el.size}" step="0.005" min="0.01">
+          <select data-e="in.type">${opt(IN_TYPES, el.in?.type)}</select>
+          <input type="number" data-e="in.at" value="${el.in?.at ?? 0}" step="0.05" min="0">
+          <select data-e="out.type">${opt(OUT_TYPES, el.out?.type)}</select>
+          <input type="number" data-e="out.at" value="${el.out?.at ?? ""}" step="0.05" min="0" ${el.out ? "" : "disabled"}>
+          <select data-e="color">${["color","accent"].concat(/^#/.test(el.color || "") ? [el.color] : []).map(c => `<option ${c === (el.color || "color") ? "selected" : ""}>${c}</option>`).join("")}</select>
+        </div>`).join("")}
+    </div>`).join("");
+  $("#kscenes").querySelectorAll(".scene").forEach(box => {
+    const sc = bp.scenes[+box.dataset.i];
+    box.querySelectorAll("[data-f]").forEach(inp => inp.oninput = () => { sc[inp.dataset.f] = inp.type === "number" ? +inp.value : inp.value; saveSpec(); });
+    box.querySelectorAll("[data-act]").forEach(b => b.onclick = () => {
+      const i = +box.dataset.i;
+      if (b.dataset.act === "del") bp.scenes.splice(i, 1);
+      if (b.dataset.act === "dup") bp.scenes.splice(i + 1, 0, JSON.parse(JSON.stringify(sc)));
+      if (b.dataset.act === "up" && i > 0) [bp.scenes[i - 1], bp.scenes[i]] = [bp.scenes[i], bp.scenes[i - 1]];
+      drawScenes(); saveSpec();
+    });
+    box.querySelectorAll(".el-row").forEach(row => {
+      const el = sc.elements[+row.dataset.j];
+      row.querySelectorAll("[data-e]").forEach(inp => inp.oninput = () => {
+        const [a, b] = inp.dataset.e.split("."), val = inp.type === "number" ? (inp.value === "" ? undefined : +inp.value) : inp.value;
+        if (a === "out" && b === "type") { el.out = val ? {...(el.out || {}), type: val} : null; if (el.out) delete el.out.at; drawScenes(); }
+        else if (b) { el[a] = el[a] || {}; el[a][b] = val; }
+        else el[a] = val;
+        saveSpec();
+      });
+    });
+  });
+}
+
+function saveSpec() {
+  kinetic.dirty = true;
+  clearTimeout(kinetic.saveTimer);
+  kinetic.saveTimer = setTimeout(async () => {
+    await api(`/api/jobs/${kinetic.jid}/blueprint`, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(kinetic.bp)});
+    const st = await api(`/api/jobs/${kinetic.jid}`);
+    kinetic.bp = st.blueprint; kinetic.bpJson = JSON.stringify(st.blueprint); kinetic.dirty = false;
+    loadPreview();
+  }, 350);
+}
+
+health(); setInterval(health, 4000); loadJobs();
+if (location.hash.length > 1) open(location.hash.slice(1));
+</script>
+</body>
+</html>
