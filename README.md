@@ -11,6 +11,11 @@ RefCut is a local web app that connects **Claude** (the brain) to **DaVinci Reso
   (cuts, beat sync, pacing, colour, text, speech), Claude maps your footage onto the same recipe, and it's
   cut into a Resolve timeline.
 
+<p align="center">
+  <img src="docs/demo.gif" width="760" alt="RefCut live preview of a kinetic-text launch video: blur-ins, beat-synced word cuts, a letter-by-letter cascade on the product name, ending on 'Available today.'">
+  <br><sub>A 10-second launch film Claude scripted from a two-sentence prompt and a music track, played in RefCut's live preview. Every cut lands on the beat; <b>Build it</b> turns each scene into a keyframed Fusion comp in Resolve.</sub>
+</p>
+
 Works with **DaVinci Resolve Free** (no Studio licence needed) and your normal **Claude subscription**
 (no API key).
 
