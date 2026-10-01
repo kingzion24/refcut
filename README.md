@@ -126,6 +126,9 @@ cd refcut
 
 **Option B — without git:** on GitHub click **Code → Download ZIP**, unzip it to e.g. `Desktop\refcut`.
 
+**Option C — the ready-made Windows folder:** download [`refcut-windows.zip`](refcut-windows.zip) from this repo and
+unzip it. It holds just the files a Windows PC needs. (It's rebuilt with `python make_zip.py`.)
+
 Then **double-click `setup.bat`** (or run `powershell -ExecutionPolicy Bypass -File setup.ps1`). It:
 
 1. Installs Python 3.12 and ffmpeg with `winget` if they're missing.
