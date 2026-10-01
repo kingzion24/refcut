@@ -171,18 +171,109 @@ def audio_analysis(path, work_dir, cut_times):
     }
 
 
-def transcribe(wav_path):
+_whisper = {}
+
+
+def _whisper_model(name):
+    from faster_whisper import WhisperModel
+    if name not in _whisper:
+        _whisper[name] = WhisperModel(name, device="cpu", compute_type="int8")
+    return _whisper[name]
+
+
+LANGUAGE_NAMES = {"en": "English", "sw": "Kiswahili"}
+
+
+def spoken_languages(choice):
+    """UI choice -> language codes. "auto" = let Whisper decide once; "en+sw" = mixed speech."""
+    return [c for c in str(choice or "auto").split("+") if c in LANGUAGE_NAMES]
+
+
+def whisper_model_for(model, langs):
+    """The tiny/base models are poor at Kiswahili; use at least `small` when it's spoken."""
+    return "small" if "sw" in langs and model in ("tiny", "base") else model
+
+
+def transcribe(wav_path, words=False, model="base", offset=0.0, hint=None, langs=None):
+    """Speech -> segments (and word timings when words=True), times shifted by `offset` seconds.
+    langs: [] = auto-detect once, one code = that language, several = mixed speech (see _transcribe_mixed)."""
     try:
-        from faster_whisper import WhisperModel
+        import faster_whisper  # noqa: F401
     except ImportError:
         return None
     import librosa
     # pass decoded samples, not a path: faster-whisper's own PyAV decoding breaks on newer PyAV
     audio, _ = librosa.load(str(wav_path), sr=16000, mono=True)
-    model = WhisperModel("base", device="cpu", compute_type="int8")
-    segs, info = model.transcribe(audio, vad_filter=True)
-    out = [{"start": round(s.start, 2), "end": round(s.end, 2), "text": s.text.strip()} for s in segs]
-    return {"language": info.language, "segments": out} if out else None
+    langs = langs or []
+    wm = _whisper_model(whisper_model_for(model, langs))
+    prompt = (hint or None) and hint[:400]
+    out, ws = [], []
+
+    def take(segs, shift, lang):
+        for s in segs:
+            out.append({"start": round(float(s.start) + shift, 2), "end": round(float(s.end) + shift, 2),
+                        "text": s.text.strip(), "lang": lang})
+            for w in (s.words or []) if words else []:
+                ws.append([round(float(w.start) + shift, 3), round(float(w.end) + shift, 3), w.word.strip()])
+
+    if len(langs) > 1:
+        used = _transcribe_mixed(wm, audio, langs, prompt, words, lambda segs, t0, lang: take(segs, t0 + offset, lang))
+        language = "+".join(used) or "+".join(langs)
+    else:
+        segs, info = wm.transcribe(audio, vad_filter=True, word_timestamps=words, initial_prompt=prompt,
+                                   language=langs[0] if langs else None)
+        take(segs, offset, None)
+        language = info.language
+        for seg in out:
+            seg["lang"] = language
+    if not out:
+        return None
+    res = {"language": language, "segments": out}
+    if words:
+        res["words"] = ws
+    return res
+
+
+def _transcribe_mixed(wm, audio, langs, prompt, words, emit, sr=16000):
+    """Speech that switches between languages (e.g. English and Kiswahili). Whisper commits to one
+    language per file, so split the audio at pauses, pick the most likely of `langs` for each
+    passage, and transcribe that passage in that language. A switch in the middle of a sentence
+    is still transcribed in the passage's main language (a Whisper limit)."""
+    from faster_whisper.vad import VadOptions, get_speech_timestamps
+    chunks = get_speech_timestamps(audio, VadOptions(min_silence_duration_ms=350, speech_pad_ms=120))
+    # merge neighbours into passages: long enough to identify the language, short enough to follow switches
+    passages = []
+    for c in chunks:
+        if passages and c["start"] - passages[-1][1] < 0.6 * sr and c["end"] - passages[-1][0] < 9 * sr:
+            passages[-1][1] = c["end"]
+        else:
+            passages.append([c["start"], c["end"]])
+    used = []
+    for a, b in passages:
+        clip = audio[a:b]
+        if len(clip) < 0.25 * sr:
+            continue
+        kw = dict(vad_filter=False, word_timestamps=words, initial_prompt=prompt, condition_on_previous_text=False)
+        try:
+            pr = dict(wm.detect_language(audio=clip)[2])
+        except Exception:
+            pr = {}
+        best = max(langs, key=lambda code: pr.get(code, 0.0))
+        if pr.get(best, 0.0) >= 0.5:
+            lang, segs = best, list(wm.transcribe(clip, language=best, **kw)[0])
+        else:
+            # Unsure (Whisper rarely recognises Kiswahili as such): transcribe in each language and
+            # keep the one the model is more confident in. Ties go to the non-English language.
+            tries = []
+            for code in sorted(langs, key=lambda c: c == "en"):
+                sg = list(wm.transcribe(clip, language=code, **kw)[0])
+                score = sum(x.avg_logprob for x in sg) / len(sg) if sg else -99.0
+                tries.append((score, code, sg))
+            _, lang, segs = max(tries, key=lambda t: round(t[0], 2))
+        emit(segs, a / sr, lang)
+        if lang not in used:
+            used.append(lang)
+    return used
 
 
 def analyze_reference(path, work_dir, progress=lambda msg, pct: None, do_transcribe=True):
@@ -333,3 +424,83 @@ def download_url(url, work_dir):
     if not found:
         raise RuntimeError("Download failed")
     return found[0]
+
+
+# ─── talking videos (story mode) ─────────────────────────────────────────────
+
+def phrases(words, gap=0.45):
+    """Group words into phrases (break on pauses and sentence ends) — what Claude cuts between."""
+    out, cur = [], []
+    for i, w in enumerate(words):
+        cur.append(w)
+        nxt = words[i + 1] if i + 1 < len(words) else None
+        if nxt is None or nxt[0] - w[1] > gap or w[2][-1:] in ".?!":
+            out.append({"start": float(cur[0][0]), "end": float(cur[-1][1]), "text": " ".join(x[2] for x in cur),
+                        "pause_after": round(float(nxt[0] - w[1]), 2) if nxt else None})
+            cur = []
+    return out
+
+
+def analyze_talk(items, work_dir, progress=lambda msg, pct: None, do_transcribe=True, model="base", hint=None,
+                 langs=None):
+    """items: [{path, name?, range?: [in, out] seconds in the file, timeline_start?}] — the clips on the
+    user's Resolve timeline (or plain files). Per source: probe, a 540p preview proxy of the used
+    range, the transcript with word timings, and sampled frames so Claude can see what's on screen.
+    hint: the user's context, given to Whisper so product names ("Mali Daftari") are spelled right."""
+    work = Path(work_dir)
+    frames_dir = work / "talk_frames"
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    sources, tiles = {}, []
+    n = len(items)
+    for i, it in enumerate(items):
+        sid = f"S{i + 1}"
+        p = Path(it["path"])
+        if not p.is_file():
+            raise RuntimeError(f"Footage file not found: {p}")
+        base = 5 + int(80 * i / max(n, 1))
+        span = 80 / max(n, 1)
+        progress(f"{sid} · reading {p.name}", base)
+        info = probe(p)
+        lo, hi = it.get("range") or (0.0, info["duration"])
+        lo, hi = max(0.0, float(lo)), min(float(hi), info["duration"] or float(hi))
+        src = {"id": sid, "path": str(p.resolve()), "name": it.get("name") or p.name, "range": [round(lo, 3), round(hi, 3)],
+               "timeline_start": it.get("timeline_start"), "track": it.get("track", 1),
+               **{k: info.get(k) for k in ("width", "height", "fps", "duration", "has_audio", "aspect")}}
+        dur = hi - lo
+        progress(f"{sid} · making a preview proxy", base + int(span * 0.1))
+        proxy = work / f"proxy_{sid}.mp4"
+        r = _run([_ffmpeg(), "-y", "-ss", f"{lo:.3f}", "-t", f"{dur:.3f}", "-i", str(p), "-vf", "scale=-2:540",
+                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "30", "-g", "15", "-c:a", "aac", "-b:a", "96k",
+                  "-movflags", "+faststart", str(proxy)])
+        if r.returncode == 0 and proxy.exists():
+            src["proxy"] = proxy.name
+        # what's on screen: ~1 frame / 10 s, 6–24 per source
+        k = max(6, min(24, int(dur / 10)))
+        for j in range(k):
+            t = lo + dur * (j + 0.5) / k
+            f = frames_dir / f"{sid}_{j:02d}.jpg"
+            if grab_frame(p, t, f):
+                tiles.append((f, f"{sid} @{t:.1f}s"))
+        if do_transcribe and info.get("has_audio"):
+            progress(f"{sid} · transcribing {dur / 60:.1f} min of speech", base + int(span * 0.3))
+            wav = work / f"talk_{sid}.wav"
+            _run([_ffmpeg(), "-y", "-ss", f"{lo:.3f}", "-t", f"{dur:.3f}", "-i", str(p), "-vn", "-ac", "1",
+                  "-ar", "16000", str(wav)])
+            if wav.exists():
+                try:
+                    tr = transcribe(wav, words=True, model=model, offset=lo, hint=hint, langs=langs)
+                except Exception as e:
+                    tr = {"error": str(e)}
+                if tr and tr.get("words"):
+                    src["language"] = tr["language"]
+                    src["words"] = tr["words"]
+                    src["phrases"] = phrases(tr["words"])
+                    for ph in src["phrases"]:          # which language each phrase was heard in
+                        seg = next((g for g in tr["segments"] if g["start"] - 0.05 <= ph["start"] <= g["end"]), None)
+                        ph["lang"] = seg["lang"] if seg else None
+                elif tr and tr.get("error"):
+                    src["transcribe_error"] = tr["error"][:300]
+        sources[sid] = src
+    progress("Making contact sheets", 88)
+    sheets = contact_sheets(tiles, work, "talk_sheet") if tiles else []
+    return {"sources": sources, "contact_sheets": [x.name for x in sheets]}

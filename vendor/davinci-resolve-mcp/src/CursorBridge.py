@@ -11,6 +11,7 @@ POST endpoints = write / mutation operations
 """
 
 import json
+import os
 import sys
 import traceback
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -18,7 +19,7 @@ from urllib.parse import urlparse, parse_qs
 
 HOST = "127.0.0.1"
 PORT = 9876
-BRIDGE_VERSION = "2.0.0"
+BRIDGE_VERSION = "2.4.0"
 
 # ---------------------------------------------------------------------------
 # Resolve bootstrap — grab the object while Fusion globals are in scope
@@ -2727,6 +2728,12 @@ def action_refcut_kinetic(body):
         safe(lambda: tl.AddMarker(it.GetStart() - start, "Blue", sc.get("name", "Scene %d" % (i + 1)), "", 1))
         results.append({"scene": sc.get("name"), "comp_imported": ok, "comps": names})
 
+    failed = []
+    _refcut_place_layers(pool, tl, start, body.get("layers", []), black, log, failed)
+    log.extend("✗ " + f for f in failed)
+
+    _refcut_place_audio(pool, tl, start, body.get("audio"), log)
+
     music = body.get("music")
     if music:
         m = pool.ImportMedia([music]) or []
@@ -2743,8 +2750,297 @@ def action_refcut_kinetic(body):
             "clips": len(items), "log": log}
 
 
+def _refcut_pool_items_by_path(pool):
+    """File path -> media pool item, across every folder."""
+    out = {}
+
+    def walk(folder):
+        for c in safe(lambda: folder.GetClipList()) or []:
+            fp = (safe(lambda: c.GetClipProperty("File Path")) or "")
+            if fp:
+                out.setdefault(os.path.normcase(os.path.normpath(fp)), c)
+        for sub in safe(lambda: folder.GetSubFolderList()) or []:
+            walk(sub)
+    walk(pool.GetRootFolder())
+    return out
+
+
+def _refcut_ensure_tracks(tl, n):
+    for _ in range(12):                         # bounded: never spin if Resolve won't add a track
+        if (safe(lambda: tl.GetTrackCount("video")) or 1) >= n or not tl.AddTrack("video"):
+            break
+
+
+def _refcut_video_item(items):
+    """AppendToTimeline returns video + linked audio items; pick the video one."""
+    for it in items or []:
+        tt = safe(lambda: it.GetTrackTypeAndIndex())
+        if tt and tt[0] == "video":
+            return it
+    return (items or [None])[0]
+
+
+def _refcut_attach_comp(it, comp, name):
+    ok = bool(it.ImportFusionComp(comp))
+    names = safe(lambda: it.GetFusionCompNameList()) or []
+    if ok and names:
+        it.LoadFusionCompByName(names[-1])
+        if name:
+            safe(lambda: it.RenameFusionCompByName(names[-1], name))
+    return ok
+
+
+def _refcut_place_audio(pool, tl, start, audio, log):
+    """Whole-timeline audio files (generated voice, music bed) on their own audio tracks."""
+    for a in audio or []:
+        m = pool.ImportMedia([a["path"]]) or []
+        track = int(a.get("track", 1))
+        for _ in range(8):                      # bounded: never spin if Resolve won't add a track
+            if (safe(lambda: tl.GetTrackCount("audio")) or 1) >= track or not tl.AddTrack("audio"):
+                break
+        if m and pool.AppendToTimeline([{"mediaPoolItem": m[0], "trackIndex": track,
+                                         "recordFrame": start, "mediaType": 2}]):
+            log.append("%s added on A%d" % (a.get("name", "audio"), track))
+        else:
+            log.append("%s could not be added" % a.get("name", "audio"))
+
+
+def _refcut_place_layers(pool, tl, start, layers, placeholder, log, failed):
+    """Upper-track layers: transparent Fusion comps (on the black placeholder) and PNG sequences
+    (Mage). `start` of each layer is in frames from the timeline start."""
+    if not layers:
+        return 0
+    _refcut_ensure_tracks(tl, max(int(l.get("track", 2)) for l in layers))
+    placed = 0
+    for l in sorted(layers, key=lambda x: (x.get("track", 2), x.get("start", 0))):
+        track, rec, frames = int(l.get("track", 2)), start + int(l.get("start", 0)), int(l["frames"])
+        if l.get("kind") == "sequence":
+            imp = pool.ImportMedia([{"FilePath": l["pattern"], "StartIndex": int(l.get("first", 0)),
+                                     "EndIndex": int(l.get("last", frames - 1))}]) or []
+            if not imp:
+                failed.append("%s: could not import image sequence %s" % (l.get("name"), l["pattern"]))
+                continue
+            src = imp[0]
+            safe(lambda: src.SetClipProperty("Alpha mode", "Straight"))
+            got = pool.AppendToTimeline([{"mediaPoolItem": src, "startFrame": 0, "endFrame": frames - 1,
+                                          "trackIndex": track, "recordFrame": rec, "mediaType": 1}])
+            it = _refcut_video_item(got)
+            if not it:
+                failed.append("%s: could not place on V%d" % (l.get("name"), track))
+                continue
+            safe(lambda: it.SetClipColor("Blue"))
+        elif l.get("kind") == "clip":           # a range of the user's own footage, picture only (B-roll over the voice)
+            key = os.path.normcase(os.path.normpath(l["path"]))
+            by_path = _refcut_pool_items_by_path(pool)
+            if key not in by_path:
+                pool.ImportMedia([l["path"]])
+                by_path = _refcut_pool_items_by_path(pool)
+            src = by_path.get(key)
+            if not src:
+                failed.append("%s: %s not in the media pool" % (l.get("name"), l["path"]))
+                continue
+            tl_fps = float(safe(lambda: tl.GetSetting("timelineFrameRate")) or 30)
+            try:
+                sfps = float(src.GetClipProperty("FPS") or tl_fps)
+            except ValueError:
+                sfps = tl_fps
+            sf = int(round(float(l.get("src_in", 0)) * sfps))
+            got = pool.AppendToTimeline([{"mediaPoolItem": src, "startFrame": sf,
+                                          "endFrame": sf + max(1, int(round(frames * sfps / tl_fps))) - 1,
+                                          "trackIndex": track, "recordFrame": rec, "mediaType": 1}])
+            it = _refcut_video_item(got)
+            if not it:
+                failed.append("%s: could not place on V%d" % (l.get("name"), track))
+                continue
+            z = float(l.get("zoom") or 1)
+            if abs(z - 1) > 0.001:
+                safe(lambda: it.SetProperty("ZoomX", z))
+                safe(lambda: it.SetProperty("ZoomY", z))
+            if l.get("tilt"):
+                safe(lambda: it.SetProperty("Tilt", float(l["tilt"])))
+            safe(lambda: it.SetClipColor("Teal"))
+        elif l.get("kind") == "media":
+            imp = pool.ImportMedia([l["path"]]) or []
+            if not imp:
+                failed.append("%s: could not import %s" % (l.get("name"), l["path"]))
+                continue
+            src = imp[0]
+            if l.get("alpha"):
+                safe(lambda: src.SetClipProperty("Alpha mode", "Straight"))
+            got = pool.AppendToTimeline([{"mediaPoolItem": src, "startFrame": 0, "endFrame": frames - 1,
+                                          "trackIndex": track, "recordFrame": rec, "mediaType": 1}])
+            it = _refcut_video_item(got)
+            if not it:
+                failed.append("%s: could not place on V%d" % (l.get("name"), track))
+                continue
+            safe(lambda: it.SetClipColor("Purple"))
+        else:
+            got = pool.AppendToTimeline([{"mediaPoolItem": placeholder, "startFrame": 0, "endFrame": frames - 1,
+                                          "trackIndex": track, "recordFrame": rec, "mediaType": 1}])
+            it = _refcut_video_item(got)
+            if not it or not _refcut_attach_comp(it, l["comp"], l.get("name")):
+                failed.append("%s: comp not attached on V%d" % (l.get("name"), track))
+                continue
+            safe(lambda: it.SetClipColor(l.get("color") or "Yellow"))
+        placed += 1
+    log.append("placed %d layer clips" % placed)
+    return placed
+
+
+def gather_refcut_timeline_media(qs):
+    """Clips on the open timeline with their source file and the range used — RefCut's story mode
+    reads the footage the user laid out."""
+    _, proj, tl, err = _timeline()
+    if err:
+        return err
+    fps = float(safe(lambda: tl.GetSetting("timelineFrameRate")) or safe(lambda: proj.GetSetting("timelineFrameRate")) or 30)
+    start = safe(lambda: tl.GetStartFrame()) or 0
+    items = []
+    for track in range(1, (safe(lambda: tl.GetTrackCount("video")) or 0) + 1):
+        for it in safe(lambda: tl.GetItemListInTrack("video", track)) or []:
+            mp = safe(lambda: it.GetMediaPoolItem())
+            if not mp:
+                continue
+            props = safe(lambda: mp.GetClipProperty()) or {}
+            path = props.get("File Path")
+            if not path:
+                continue
+            try:
+                src_fps = float(props.get("FPS") or fps)
+            except ValueError:
+                src_fps = fps
+            src_in = safe(lambda: it.GetSourceStartFrame())
+            how = "GetSourceStartFrame"
+            if src_in is None:
+                src_in, how = safe(lambda: it.GetLeftOffset()), "GetLeftOffset"
+            dur = (safe(lambda: it.GetDuration()) or 0) / fps
+            s_in = (src_in or 0) / src_fps
+            items.append({"track": track, "name": safe(lambda: it.GetName()), "path": path,
+                          "timeline_start": round(((safe(lambda: it.GetStart()) or start) - start) / fps, 3),
+                          "range": [round(s_in, 3), round(s_in + dur, 3)], "src_fps": src_fps,
+                          "enabled": safe(lambda: it.GetClipEnabled()), "in_from": how,
+                          "resolution": props.get("Resolution")})
+    items.sort(key=lambda x: (x["timeline_start"], x["track"]))
+    return {"project": safe(lambda: proj.GetName()), "timeline": safe(lambda: tl.GetName()), "fps": fps,
+            "width": safe(lambda: int(tl.GetSetting("timelineResolutionWidth"))),
+            "height": safe(lambda: int(tl.GetSetting("timelineResolutionHeight"))),
+            "items": items}
+
+
+GET_ROUTES["/refcut/timeline-media"] = gather_refcut_timeline_media
+
+
+def action_refcut_story(body):
+    """Build a talking-video edit as a NEW timeline in the open project: V1 cuts of the user's footage
+    (+ card comps), upper tracks for callouts, Mage and captions, markers, optional SRT."""
+    r, err = _resolve()
+    if err:
+        return err
+    proj = r.GetProjectManager().GetCurrentProject()
+    if not proj:
+        return {"error": "No project open in Resolve"}
+    pool = proj.GetMediaPool()
+    log, failed = [], []
+    fmt = body.get("format", {})
+    fps = float(fmt.get("fps") or 30)
+
+    base = body.get("timeline") or "RefCut edit"
+    tl, n = None, 1
+    while not tl and n < 50:
+        tl = pool.CreateEmptyTimeline(base if n == 1 else "%s v%d" % (base, n))
+        n += 1
+    if not tl:
+        return {"error": "Could not create timeline"}
+    proj.SetCurrentTimeline(tl)
+    log.append("timeline: %s" % tl.GetName())
+    if safe(lambda: tl.SetSetting("useCustomSettings", "1")):
+        for key, val in (("timelineResolutionWidth", fmt.get("width")), ("timelineResolutionHeight", fmt.get("height")),
+                         ("timelineInputResMismatchBehavior", "scaleToCrop")):
+            if val and not safe(lambda: tl.SetSetting(key, str(val))):
+                log.append("could not set %s=%s" % (key, val))
+    tl_fps = float(safe(lambda: tl.GetSetting("timelineFrameRate")) or fps)
+    if abs(tl_fps - fps) > 0.01:
+        log.append("timeline runs at %s fps, plan at %s fps — durations are kept in frames" % (tl_fps, fps))
+
+    by_path = _refcut_pool_items_by_path(pool)
+    need = sorted({x["path"] for x in body.get("v1", []) if x.get("kind") == "clip"})
+    missing = [p for p in need if os.path.normcase(os.path.normpath(p)) not in by_path]
+    if missing:
+        pool.ImportMedia(missing)
+        by_path = _refcut_pool_items_by_path(pool)
+    placeholder = None
+    if body.get("placeholder"):
+        imp = pool.ImportMedia([body["placeholder"]]) or []
+        placeholder = imp[0] if imp else None
+
+    start = tl.GetStartFrame()
+    rec, clips = start, 0
+    for x in body.get("v1", []):
+        frames = int(x["frames"])
+        if x.get("kind") == "clip":
+            mp = by_path.get(os.path.normcase(os.path.normpath(x["path"])))
+            if not mp:
+                failed.append("%s: %s not in the media pool" % (x.get("name"), x["path"]))
+                rec += frames
+                continue
+            try:
+                sfps = float(mp.GetClipProperty("FPS") or fps)
+            except ValueError:
+                sfps = fps
+            sf = int(round(float(x["src_in"]) * sfps))
+            ef = sf + max(1, int(round(frames * sfps / fps))) - 1
+            got = pool.AppendToTimeline([{"mediaPoolItem": mp, "startFrame": sf, "endFrame": ef,
+                                          "trackIndex": 1, "recordFrame": rec}])
+            it = _refcut_video_item(got)
+            if not it:
+                failed.append("%s: could not cut %s [%s-%s]" % (x.get("name"), os.path.basename(x["path"]), sf, ef))
+            else:
+                z = float(x.get("zoom") or 1)
+                if abs(z - 1) > 0.001:
+                    safe(lambda: it.SetProperty("ZoomX", z))
+                    safe(lambda: it.SetProperty("ZoomY", z))
+                clips += 1
+        else:
+            if not placeholder:
+                failed.append("%s: no placeholder clip for the card" % x.get("name"))
+                rec += frames
+                continue
+            got = pool.AppendToTimeline([{"mediaPoolItem": placeholder, "startFrame": 0, "endFrame": frames - 1,
+                                          "trackIndex": 1, "recordFrame": rec, "mediaType": 1}])
+            it = _refcut_video_item(got)
+            if not it or not _refcut_attach_comp(it, x["comp"], x.get("name")):
+                failed.append("%s: card comp not attached" % x.get("name"))
+            else:
+                safe(lambda: it.SetClipColor("Orange"))
+        rec += frames
+    log.append("V1: %d cuts of your footage" % clips)
+
+    _refcut_place_layers(pool, tl, start, body.get("layers", []), placeholder, log, failed)
+    names = body.get("track_names") or {"2": "Callouts", "3": "Mage", "4": "Captions"}
+    for i, name in sorted((int(k), v) for k, v in names.items()):
+        if (safe(lambda: tl.GetTrackCount("video")) or 0) >= i:
+            safe(lambda: tl.SetTrackName("video", i, name))
+    for m in body.get("markers", []):
+        safe(lambda: tl.AddMarker(int(m["frame"]), m.get("color", "Blue"), m.get("name", ""), m.get("note", ""), 1))
+    _refcut_place_audio(pool, tl, start, body.get("audio"), log)
+
+    if body.get("srt"):
+        imp = pool.ImportMedia([body["srt"]]) or []
+        if imp and pool.AppendToTimeline([{"mediaPoolItem": imp[0], "recordFrame": start}]):
+            log.append("captions added on a subtitle track")
+        else:
+            log.append("captions.srt imported to the media pool — drag it onto the timeline" if imp
+                       else "could not import captions.srt (%s)" % body["srt"])
+
+    r.GetProjectManager().SaveProject()
+    safe(lambda: tl.SetCurrentTimecode(tl.GetStartTimecode()))
+    safe(lambda: r.OpenPage("edit"))
+    return {"success": not failed, "project": proj.GetName(), "timeline": tl.GetName(), "log": log, "failed": failed}
+
+
 POST_ROUTES = {
     "/refcut/kinetic":              action_refcut_kinetic,
+    "/refcut/story":                action_refcut_story,
     "/bridge/shutdown":             action_shutdown,
     "/page":                        action_open_page,
     "/playhead":                    action_set_timecode,

@@ -5,3 +5,4 @@ __pycache__/
 settings.json
 vendor/davinci-resolve-mcp/logs/
 *.zip
+motion-runtime/

@@ -7,7 +7,20 @@ RefCut is a local web app that connects **Claude** (the brain) to **DaVinci Reso
 - **Kinetic text** — Apple-style, text-only launch videos. Claude writes a motion script, you preview and
   tweak it in the browser, and RefCut builds it as **keyframed Fusion comps** (one per scene) on a Resolve
   timeline, synced to your music.
-- **Edit footage** — drop a reference edit and point at your clips. RefCut measures the reference
+- **Talking video** — dev logs, "building in public" updates and feature walkthroughs. Put your long,
+  rough footage on a Resolve timeline and describe the video in a line. RefCut transcribes it and Claude
+  cuts it tight: a hook first, filler and retakes out, punch-in zooms on jump cuts, title cards, callouts,
+  captions. It builds a **new timeline** next to yours.
+- **YouTube story** — the long-form version of a talking video: a cold open, your own B-roll cut over your
+  voice, text cards, chapters, quiet subtitles and a music bed. It can mirror a reference video you link.
+- **Mascot video** — faceless explainers. Claude writes the script, [VoiceStudio](https://github.com/debpalash/VoiceStudio)
+  speaks it in a voice you cloned or designed, and Mage hosts on screen with text timed to the spoken words.
+- **English + Kiswahili** — talking videos understand speech that switches between the two.
+- **Mage** — Mali Daftari's mascot as a motion character in any kinetic or talking video. It pops in,
+  reacts (happy, confused, thinking…), pushes up its glasses and hosts the intro and outro.
+- **Motion B-roll** — in a talking video, one click has Claude design animated cutaways and panels
+  timed to your words (a morphing shape, a cursor, spring motion) using the bundled `motion-broll` skill.
+- **Match a ref** — drop a reference edit and point at your clips. RefCut measures the reference
   (cuts, beat sync, pacing, colour, text, speech), Claude maps your footage onto the same recipe, and it's
   cut into a Resolve timeline.
 
@@ -44,10 +57,16 @@ Everything runs on one machine. Nothing is exposed to the network — both serve
 6. [Start RefCut and check the status lights](#6-start-refcut-and-check-the-status-lights)
 7. [Make your first kinetic-text video](#7-make-your-first-kinetic-text-video)
 8. [One-time calibration (text size + font)](#8-one-time-calibration-text-size--font)
-9. [Edit-footage mode](#9-edit-footage-mode)
-10. [Every-day workflow (cheat sheet)](#10-every-day-workflow-cheat-sheet)
-11. [Troubleshooting](#11-troubleshooting)
-12. [How it works](#12-how-it-works)
+9. [Match a ref](#9-match-a-ref)
+10. [Talking videos (dev logs, feature walkthroughs)](#10-talking-videos-dev-logs-feature-walkthroughs)
+11. [Mage, the motion character](#11-mage-the-motion-character)
+12. [Motion B-roll and bundled skills](#12-motion-b-roll-and-bundled-skills)
+13. [YouTube stories (long-form)](#13-youtube-stories-long-form)
+14. [Mascot videos and the generated voice](#14-mascot-videos-and-the-generated-voice)
+15. [English + Kiswahili speech](#15-english--kiswahili-speech)
+16. [Every-day workflow (cheat sheet)](#16-every-day-workflow-cheat-sheet)
+17. [Troubleshooting](#17-troubleshooting)
+18. [How it works](#18-how-it-works)
 
 ---
 
@@ -59,9 +78,11 @@ Everything runs on one machine. Nothing is exposed to the network — both serve
 | DaVinci Resolve | 18 or newer — **Free or Studio** |
 | Claude | A Claude account (Pro/Max) for Claude Code |
 | Disk | ~3 GB for Python packages (PyTorch CPU, Whisper) + Resolve itself |
+| Node.js | 18 or newer, only for motion B-roll (setup installs it) |
+| VoiceStudio | Only for mascot videos: the free local voice app from <https://voicestudio.sh>. A GPU with ~6 GB helps a lot |
 | Internet | Needed for setup and for Claude; editing itself is local |
 
-Setup installs these automatically if missing: **Python 3.12**, **ffmpeg** (via `winget`).
+Setup installs these automatically if missing: **Python 3.12**, **ffmpeg**, **Node.js** (via `winget`).
 
 ---
 
@@ -111,6 +132,11 @@ Then **double-click `setup.bat`** (or run `powershell -ExecutionPolicy Bypass -F
    `%APPDATA%\Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Utility\CursorBridge.py`
 4. Registers the DaVinci MCP server with Claude Code (optional bonus — lets you drive Resolve from a
    `claude` terminal session too).
+5. Installs RefCut's bundled Claude skills into `%USERPROFILE%\.claude\skills\` (see section 12).
+6. Installs Node.js if it's missing and downloads the motion B-roll renderer (~150 MB).
+
+Updating from an older RefCut: copy the new folder over the old one, run `setup.bat` again, and in Resolve
+run **Workspace → Scripts → CursorBridge** again so it loads the new bridge.
 
 It takes 5–15 minutes the first time. When it prints **Done**, continue.
 
@@ -150,17 +176,20 @@ opens a local connection (`127.0.0.1:9876`) that RefCut uses to build projects, 
 **Double-click `start.bat`.** A terminal window opens (leave it running) and your browser opens
 <http://localhost:7860>.
 
-Top-right of the page are two status lights. Both should be **green** before you build:
+Top-right of the page are three status lights. **Claude** and **DaVinci** should be green before you build;
+**Voice** only matters for mascot videos:
 
 | Light | 🟢 Green | 🟠 Amber | 🔴 Red |
 |---|---|---|---|
 | **Claude** | Installed, logged in, answered a test call. Shows the version. | Error talking to Claude | Not installed / not logged in |
 | **DaVinci** | Bridge connected. Shows your open project name. | Resolve is open but the bridge isn't started | Resolve isn't running |
+| **Voice** | VoiceStudio is open; your voices are in the Mascot video voice list. | VoiceStudio isn't running | – |
 
 **Click a light** to see exactly what's wrong and how to fix it, plus a **Re-check** button. The lights refresh
 every few seconds, so after you start CursorBridge the DaVinci light turns green on its own.
 
-You can plan and preview with only Claude green; DaVinci only needs to be green when you click **Build it**.
+You can plan and preview with only Claude green; DaVinci only needs to be green when you click **Build it**
+(and to read your timeline for a talking video). Clicking the Claude light also lists the bundled skills.
 
 ---
 
@@ -213,9 +242,9 @@ build, compare text size in Resolve with the RefCut preview:
 
 ---
 
-## 9. Edit-footage mode
+## 9. Match a ref
 
-1. Pick the **Edit footage** tab.
+1. Pick the **Match a ref** tab.
 2. Drop a reference edit (or paste a link) and enter your **footage folder** (e.g. `D:\Footage\Trip`).
 3. Add context → **Analyze & plan**. You get the recipe (pacing, cutting, look, text, music), a colour-coded
    timeline with beat ticks, and a shot-by-shot table matching each reference shot to one of your clips.
@@ -227,21 +256,196 @@ blueprint lists those under *"You'll finish by hand"*.
 
 ---
 
-## 10. Every-day workflow (cheat sheet)
+## 10. Talking videos (dev logs, feature walkthroughs)
+
+For videos where you talk: a dev-journey update, a feature walkthrough, a "here's what I shipped" clip.
+
+1. **In Resolve**, put your raw footage on a timeline: talking head, screen recordings, or both, in
+   roughly the order you recorded them. Trim anything you already know you don't want. RefCut uses
+   exactly the part of each clip that's on the timeline.
+2. **In RefCut**, pick the **Talking video** tab. Under *Your footage* keep **My Resolve timeline**; the
+   card shows the timeline RefCut will read (click *Re-read* after changing it). No Resolve? Switch to
+   **Files / folder** and paste file paths, one per line, or a folder.
+3. **Context**: describe the rest in a line or two. For example:
+   > Day 12 of building Mali Daftari: I got offline sync working. TikTok short, hook with the demo,
+   > Mage confused at the bug and happy when it works.
+
+   Product names in the context also help speech recognition spell them right.
+4. **Format** (*Match timeline*, 9:16, 16:9…), **Length** (Auto, ~30 s, ~60 s… or *Just tighten*),
+   **Captions** (*Burned in* = editable Text+, *Subtitle track* = .srt, *Off*), and tick **Feature Mage**.
+5. **Analyze & plan.** RefCut transcribes every clip with word timings, samples frames so Claude can
+   see face cam vs. screen, and Claude writes the edit plan (1–3 minutes for a few minutes of footage).
+6. **Review.** The preview plays your actual footage with the cuts, cards, callouts, Mage and captions.
+   In **Timeline**, each clip row shows what's said in it. Change in/out/zoom, reorder, duplicate to
+   split, delete, or add cards. **Overlays** are pinned to a timeline item, so they move with it.
+   Cuts snap to word boundaries automatically. Or ask in **Adjust**: *"tighter"*, *"open on the demo"*,
+   *"add a card before the bug fix"*.
+7. **Build it.** RefCut adds a new timeline to the open project; your original timeline isn't touched:
+
+| Track | What's on it |
+|---|---|
+| V1 | Your cuts (in/out on word boundaries, punch-in zoom) and cards (Fusion comps, orange) |
+| V2 · Callouts | Text overlays: transparent Fusion comps (yellow) |
+| V3 · Mage | Mage as transparent PNG sequences (blue) |
+| V4 · Captions | One Text+ comp per caption, so typos are fixable on the Fusion page. Or a subtitle track with *Subtitle track* |
+
+With [motion B-roll](#12-motion-b-roll-and-bundled-skills), its clips take V2 (purple), directly above
+your footage, and callouts, Mage and captions move up one track.
+| A1 | The audio that goes with each cut |
+
+Markers mark each card (blue) and overlay (yellow). Speech recognition quality: **Fusion settings →
+Speech recognition** (*Accurate (small)* is better for accents, but slower).
+
+---
+
+## 11. Mage, the motion character
+
+Mage is Mali Daftari's mascot: a brand-blue (`#0077B6`) round head with only eyes and browline glasses
+(spec: `Mali-Daftari-Mobile/mali_daftari/docs/ui/08_MAGE.md`). RefCut draws it with the same geometry,
+moods and timings as the app's `MageFace` widget.
+
+Tick **Feature Mage** in *Kinetic text* or *Talking video* and Claude casts it. It hosts the intro and
+outro, reacts in a corner over your footage, and does its signature glasses-off move once. In any scene
+editor, **+ Mage** adds one by hand. Each Mage row sets the starting mood, size, entrance / exit and
+variant (*reversed* = white head for brand-blue backgrounds).
+
+- **Moods:** idle · thinking · talking (eyes squash, pushes glasses up) · happy · focused · confused ·
+  searching
+- **Beats:** blink · hop · glance · push (glasses) · glasses_off / glasses_on · signature
+- **Moves:** glides to a new position / size, e.g. centre stage → corner to make room for a headline
+
+Mage blinks and glances on its own. In Resolve it's a transparent PNG sequence on its own track
+(V2 in kinetic videos, V3 in talking videos), frame-for-frame what the preview shows.
+
+---
+
+## 12. Motion B-roll and bundled skills
+
+RefCut ships with Claude **skills** in `refcut\skills\`. Setup, and every start of RefCut, installs them
+into this machine's Claude (`%USERPROFILE%\.claude\skills\`), so RefCut's own Claude calls and Claude Code
+in your terminal can both use them. A skill you installed yourself under the same name is left alone.
+Click the **Claude** status light to see them. To bundle another skill, drop its folder (with a
+`SKILL.md`) into `refcut\skills\`.
+
+| Skill | From | RefCut uses it for |
+|---|---|---|
+| `motion-broll` | [Barty-Bart/motion-graphics](https://github.com/Barty-Bart/motion-graphics) (MIT) | **Add motion B-roll** in a talking video |
+
+**Add motion B-roll** (talking video, under the preview):
+
+1. Get the cut how you want it first. B-roll is made for the current edit.
+2. Pick a density (Light / Medium / Heavy), optionally say what to show or avoid ("use the real number:
+   10 sales", "nothing over the demo"), and click **Add motion B-roll**.
+3. Claude reads the skill, looks at your footage and word timings, writes a plan, builds each clip as an
+   animated HTML scene, checks stills on the key words, fixes what's off, and renders with motion blur.
+   Expect several minutes; the log shows each step. The first run downloads the renderer (~150 MB).
+4. The clips appear in the preview (purple lane) and in the list, where ✕ removes one. **Build it** puts
+   them on their own track. Full-frame cutaways cover the footage while your voice carries on; panels
+   are transparent and sit beside you.
+
+It never invents numbers or results: lists and charts use placeholder bars unless you give real figures.
+Needs **Node.js** (setup installs it). During this step Claude runs commands on your PC (Node, Python,
+ffmpeg) inside the job's `motion` folder.
+
+---
+
+## 13. YouTube stories (long-form)
+
+In **Talking video**, set *Kind of video* to **YouTube story**. Everything in section 10 still applies; the
+edit is planned as a watch-time video instead of a short:
+
+- **Put B-roll on the timeline too** (or in the folder): clips with no speech are treated as B-roll. Say what
+  they are in the context ("broll_shop is the shop counter, screen_demo is the app").
+- **Reference video** *(optional)*: paste a link to a video you want yours to feel like. RefCut measures its
+  pacing and Claude reads its frames, then uses the same devices with your footage. It mirrors structure and
+  rhythm, never the words or branding.
+- **Music bed** *(optional)*: choose a track. RefCut makes a version that sits low under your voice and comes
+  up in the gaps, plays it in the preview, and puts it on A2.
+
+What Claude plans, and where it lands in Resolve:
+
+| Device | In the plan | In Resolve |
+|---|---|---|
+| Cold open | Your strongest line over a fast montage, then a title card | V1 + B-roll track |
+| Cutaways | Your B-roll over your voice (audio keeps playing) | **B-roll** track (teal), picture only |
+| Inset frames | A cutaway as a framed picture on a plain canvas | Clip zoomed out over a **Canvas** track |
+| Text cards | The screen becomes a canvas; key words appear as you say them | **Callouts** track, opaque |
+| Chapters | 4–8 chapter cards and green markers | Markers; the YouTube chapter list is shown in RefCut and in the build log |
+| Captions | Small, quiet subtitles | **Captions** track |
+
+Cutaways are listed under the timeline editor: move them, change the source range, switch between full
+screen and inset, or delete them.
+
+---
+
+## 14. Mascot videos and the generated voice
+
+For faceless content: no camera, a generated voice, Mage on screen.
+
+**One-time: install VoiceStudio.** RefCut generates speech through [VoiceStudio](https://github.com/debpalash/VoiceStudio),
+a free local app (voice cloning, voice design, 600+ languages including Kiswahili). Install it from
+<https://voicestudio.sh>, open it, let it download its voice model, then clone your voice or design one for
+Mage. While VoiceStudio is open, RefCut's **Voice** light is green and your voices appear in the voice list.
+Its default engine wants a GPU with about 6 GB of memory; on smaller machines pick its lighter (GGUF) variant.
+
+RefCut talks to VoiceStudio's local API (`127.0.0.1:3900`); it doesn't contain VoiceStudio's code, which is
+AGPL-licensed. Clone voices only with permission.
+
+1. Pick the **Mascot video** tab.
+2. **Context**: what the video should explain, or paste your full script.
+3. Choose the **Voice**, the **Language** (English, Kiswahili, or a mix where each line is in one language),
+   length, format and an optional music bed.
+4. **Analyze & plan.** Claude writes the script and directs the scenes; VoiceStudio speaks each line.
+5. **Review.** Each scene shows the line it *says*. Text and Mage's reactions are timed to spoken words
+   (the blue number is the word they land on), so a scene lasts as long as its line. Mage's eyes move with
+   the voice. Captions are added automatically and wrap to fit the frame.
+6. Edit any line, then **Generate voice**: only the changed lines are redone.
+7. **Build it.** One Fusion clip per scene, Mage on V2, the voice on A1 and the music bed on A2.
+
+If VoiceStudio isn't open, RefCut still writes the script and scenes with estimated timing; open it and
+click **Generate voice** when ready.
+
+---
+
+## 15. English + Kiswahili speech
+
+In **Talking video**, set **You speak** to *English + Kiswahili, mixed*. Speech recognition normally locks
+onto one language per file and drops or garbles the other. In mixed mode RefCut splits your speech at
+pauses, decides English or Kiswahili for each passage, and transcribes it in that language.
+
+- Kiswahili needs a bigger model than English: RefCut uses at least *small* automatically. For the best
+  result choose **Fusion settings → Speech recognition → Best for Kiswahili** (a 1.6 GB download, slower).
+- Recognition of Kiswahili is still rough in places. Claude reads through it, and returns corrected
+  wording for misheard phrases, which the captions use. Burned captions stay editable in Resolve.
+- A switch in the *middle* of a sentence is transcribed in that passage's main language.
+- Naming your product in the context ("Mali Daftari") helps it spell names right.
+
+---
+
+## 16. Every-day workflow (cheat sheet)
 
 ```
 1. Open DaVinci Resolve → open a project
 2. Workspace → Scripts → CursorBridge
-3. Double-click start.bat          (browser opens localhost:7860)
-4. Both lights green? → make things → Build it
+3. (Mascot videos only) open VoiceStudio
+4. Double-click start.bat          (browser opens localhost:7860)
+5. Claude + DaVinci lights green? → pick a tab → Analyze & plan → Build it
 ```
+
+| You're making | Tab |
+|---|---|
+| A talking short (dev log, feature update) | **Talking video** → Short |
+| A long YouTube story with B-roll and chapters | **Talking video** → YouTube story |
+| A text-only launch / ad video | **Kinetic text** |
+| A faceless explainer with Mage and a generated voice | **Mascot video** |
+| A cut that copies a reference edit's rhythm | **Match a ref** |
 
 To update RefCut later: `git pull` in the folder (or download the ZIP again), then run `setup.bat` again and
 **restart Resolve** so it loads the newest CursorBridge.
 
 ---
 
-## 11. Troubleshooting
+## 17. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -257,13 +461,24 @@ To update RefCut later: `git pull` in the folder (or download the ZIP again), th
 | "Analyze & plan" is slow | First run downloads the Whisper model. Untick *Transcribe speech* for music-only references. |
 | Link download fails | Some sites block downloading — save the video and drop the file instead. |
 | `start.bat` says run setup first | Run `setup.bat`; if it failed, read its output (usually winget/Python). |
+| Talking video: *"older CursorBridge"* / can't read the timeline | Re-run `setup.bat`, then in Resolve run **Workspace → Scripts → CursorBridge** again (it replaces the running one). |
+| Talking video: cuts land a few frames off | Resolve didn't report the clip's source in-point. Build from **Files / folder**, or trim clips on the timeline so they start at the file's beginning. |
+| Mage shows a black box instead of transparency | In the Media Pool, right-click the Mage clip → **Clip Attributes → Alpha mode → Straight**. |
+| Motion B-roll: *"Node.js isn't installed"* | Install Node.js LTS from nodejs.org (or re-run `setup.bat`), restart `start.bat`. |
+| Motion B-roll made no clips | Read the log: usually the renderer download failed (re-run `setup.bat`) or Claude dropped a clip that wouldn't render. Click **Redo B-roll**. |
+| Motion B-roll is in the wrong place after re-editing | Clips are pinned to the timeline item they were made for. After big changes, **Redo B-roll**. |
+| **Voice** light amber | VoiceStudio isn't open. Open it; the light turns green in a few seconds. |
+| Mascot video: lines "without voice" | Open VoiceStudio and click **Generate voice**. If a line fails, the error says why (usually the model isn't downloaded yet). |
+| Voice generation is very slow | VoiceStudio is running on CPU. Use a GPU, or its lighter GGUF engine. |
+| Kiswahili lines missing or garbled | Set **You speak** to *English + Kiswahili, mixed* and use the *Best for Kiswahili* model. |
+| Captions have typos | Burned captions are Text+: select the caption clip → Fusion page → edit the text. Or fix the words in **Adjust** and rebuild. |
 
 Logs: the `start.bat` window shows server errors. Each job's files (frames, comps, blueprint) are in
 `refcut\jobs\<job-id>\`.
 
 ---
 
-## 12. How it works
+## 18. How it works
 
 ```
 refcut/
@@ -271,9 +486,17 @@ refcut/
 ├─ analyze.py      ffmpeg cut detection · beat/energy (librosa) · colour stats · Whisper · contact sheets
 ├─ brain.py        claude -p prompts: motion script (kinetic) / edit blueprint (footage) / refine / build
 ├─ kinetic.py      motion script → keyframe tracks → Fusion .comp files (same tracks drive the preview)
-├─ static/         index.html (UI) · kinetic.js (live preview player)
+├─ story.py        talking videos: edit plan + transcript → word-snapped cuts, cards, overlays, captions
+├─ mage.py         Mage: per-frame poses (moods, blinks, glasses) → transparent PNG sequences
+├─ mascot.py       mascot videos: voiced script → scene timing from the voice, captions, voice + music tracks
+├─ voice.py        VoiceStudio client: voices, speech per line (cached), word timings, loudness for Mage
+├─ broll.py        motion B-roll: runs Claude headless on the bundled motion-broll skill, collects the clips
+├─ skillset.py     installs the bundled skills into this machine's Claude (~/.claude/skills)
+├─ skills/         bundled skills (motion-broll)
+├─ static/         index.html (UI) · kinetic.js (kinetic player + Mage drawing) · story.js (talking-video player)
 ├─ vendor/davinci-resolve-mcp/
-│    ├─ src/CursorBridge.py         runs inside Resolve; HTTP API on 127.0.0.1:9876 (+ /refcut/kinetic)
+│    ├─ src/CursorBridge.py         runs inside Resolve; HTTP API on 127.0.0.1:9876 (+ /refcut/kinetic,
+│    │                              /refcut/story, /refcut/timeline-media)
 │    └─ src/resolve_mcp_bridge.py   MCP server used for footage builds and Claude Code
 ├─ setup.bat / setup.ps1   one-time install
 └─ start.bat               launch
@@ -281,15 +504,21 @@ refcut/
 
 - **Kinetic builds are deterministic**: RefCut writes one `.comp` per scene and a black placeholder clip,
   then a single bridge call creates the project/timeline, lays out one clip per scene and attaches each comp.
-- **Footage builds** are driven by Claude through the DaVinci MCP tools (import, insert with in/out points,
+- **Talking-video builds are deterministic too.** Claude writes the plan; RefCut snaps every cut to the
+  transcript's word boundaries, writes the comps and Mage sequences, and one bridge call builds the timeline.
+- **Match-a-ref builds** are driven by Claude through the DaVinci MCP tools (import, insert with in/out points,
   markers, CDL grades), with the build log streamed into the UI.
 - Fusion comp format (keyframe splines with absolute bezier handles, XYPath, Text Follower, `GlobalOut`,
   `UseFrameFormatSettings`) was checked against comps saved by Resolve itself.
 
 ### Credits
 
+`skills/motion-broll` is from [Barty-Bart/motion-graphics](https://github.com/Barty-Bart/motion-graphics)
+(MIT licence; Geist fonts under the SIL Open Font License), with small fixes for Windows and vertical video
+listed in `skills/README.md`.
+
 `vendor/davinci-resolve-mcp` is [hiteshK03/davinci-resolve-mcp](https://github.com/hiteshK03/davinci-resolve-mcp)
-(MIT licence), pinned to `mcp<2`, with an added `/refcut/kinetic` endpoint in `CursorBridge.py`.
+(MIT licence), pinned to `mcp<2`, with added `/refcut/*` endpoints in `CursorBridge.py`.
 
 ## License
 

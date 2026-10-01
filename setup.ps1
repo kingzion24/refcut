@@ -57,4 +57,21 @@ if (Have claude) {
   claude mcp add --scope user davinci-resolve -- "$pyAbs" "$server"
 }
 
+# 7. Skills that ship with RefCut -> this machine's Claude (%USERPROFILE%\.claude\skills)
+& $vpy skillset.py
+
+# 8. Node.js + the motion B-roll renderer (Playwright + Chromium). Only "Add motion B-roll" needs these.
+if (-not (Have node)) {
+  Write-Host "Installing Node.js LTS (winget)..." -ForegroundColor Yellow
+  winget install -e --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
+  Refresh-Path
+}
+if (Have node) {
+  Write-Host "Installing the motion B-roll renderer (first time: ~150 MB download)..." -ForegroundColor Yellow
+  & $vpy -c "import broll; [print('  ' + t) for _, t in broll.ensure_runtime()]; print('Motion B-roll renderer:', broll.runtime_status()['state'])"
+  if ($LASTEXITCODE -ne 0) { Write-Host "Renderer install failed - RefCut will retry the first time you click 'Add motion B-roll'." -ForegroundColor Yellow }
+} else {
+  Write-Host "Node.js installed - open a NEW terminal and run setup again to finish the motion B-roll renderer (everything else is ready)." -ForegroundColor Yellow
+}
+
 Write-Host "`nDone. Run start.bat, then in Resolve: Workspace > Scripts > CursorBridge." -ForegroundColor Green

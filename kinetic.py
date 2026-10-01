@@ -13,6 +13,8 @@ import copy
 import math
 from pathlib import Path
 
+import mage
+
 # CSS-style cubic-bezier easings. Fusion handles map 1:1 onto these control points.
 EASINGS = {
     "expo_out": (0.16, 1.0, 0.3, 1.0),     # Apple's signature: fast in, long soft landing
@@ -40,6 +42,8 @@ IN_PRESETS = {
     "tilt_in": {"opacity": 0, "rot": -6, "dy": 0.03},
     "cascade": {"dy": 0.02},        # per-letter opacity via Text Follower; line rises slightly
     "cut": {},                      # hard on — stop-motion / beat cut
+    "pop": {"opacity": 0, "scale": 0.35},     # springs in (defaults to back_out); made for characters
+    "peek": {"opacity": 0, "dy": 0.3},        # rises in from low in the frame
 }
 # End values for exits (animate from rest to these).
 OUT_PRESETS = {
@@ -53,11 +57,18 @@ OUT_PRESETS = {
     "slide_right": {"opacity": 0, "dx": 0.06},
     "track_out": {"opacity": 0, "tracking": 0.35, "blur": 6},
     "cut": {},
+    "pop_out": {"opacity": 0, "scale": 0.35},
+    "sink": {"opacity": 0, "dy": 0.3},
 }
 
 CAP_HEIGHT_EM = 0.70   # cap height as a fraction of the em for typical grotesk fonts
 FONT_WEIGHTS = {"thin": 100, "extralight": 200, "light": 300, "regular": 400, "medium": 500,
                 "semibold": 600, "bold": 700, "extrabold": 800, "black": 900, "heavy": 900}
+
+
+def caption_max_chars(size, width, height, fill=0.86):
+    """How many characters of caption text fit across the frame at this size (average glyph ≈ 0.56 em)."""
+    return max(8, int(fill * width / (size * height / CAP_HEIGHT_EM * 0.56)))
 
 
 # ─── spec normalisation ──────────────────────────────────────────────────────
@@ -90,32 +101,43 @@ def normalize(spec):
     st.setdefault("easing", "expo_out")
     for i, sc in enumerate(s.setdefault("scenes", [])):
         sc.setdefault("name", f"Scene {i + 1}")
-        sc["dur"] = max(0.2, float(sc.get("dur", 1.5)))
-        for el in sc.setdefault("elements", []):
+        normalize_scene(sc, st)
+    return s
+
+
+def normalize_scene(sc, st):
+    """Defaults and clamps for one scene (a kinetic scene, a story card or an overlay)."""
+    sc["dur"] = max(0.2, float(sc.get("dur", 1.5)))
+    for el in sc.setdefault("elements", []):
+        if el.get("kind") == "mage":
+            mage.normalize(el)
+        else:
+            el["kind"] = "text"
             el["text"] = str(el.get("text", ""))
-            el["x"] = float(el.get("x", 0.5))
-            el["y"] = float(el.get("y", 0.5))
             el["size"] = max(0.01, float(el.get("size", 0.08)))
             el.setdefault("weight", st["weight"])
             el.setdefault("font", st["font"])
             c = el.get("color") or "color"
             el["rgb"] = _hex_rgb(st["accent"] if c == "accent" else st["color"] if c == "color" else c)
             el["tracking"] = float(el.get("tracking", -0.01))
-            i_ = el.get("in") or {}
-            el["in"] = {"type": i_.get("type", "blur_in") if i_.get("type") in IN_PRESETS else "blur_in",
-                        "at": max(0.0, float(i_.get("at", 0))), "dur": max(0.0, float(i_.get("dur", 0.6))),
-                        "ease": i_.get("ease", st["easing"]) if i_.get("ease", st["easing"]) in EASINGS else "expo_out",
-                        "stagger": max(0.0, float(i_.get("stagger", 0.03 if i_.get("type") == "cascade" else 0)))}
-            o = el.get("out")
-            if o and o.get("type") in OUT_PRESETS:
-                el["out"] = {"type": o["type"], "dur": max(0.0, float(o.get("dur", 0.35))),
-                             "ease": o.get("ease", "in") if o.get("ease", "in") in EASINGS else "in"}
-                el["out"]["at"] = float(o.get("at", sc["dur"] - el["out"]["dur"]))
-            else:
-                el["out"] = None
-            d = el.get("drift") or {}
-            el["drift"] = {"scale": float(d.get("scale", 1.0)), "dy": float(d.get("dy", 0.0))}
-    return s
+        el["x"] = float(el.get("x", 0.5))
+        el["y"] = float(el.get("y", 0.5))
+        i_ = el.get("in") or {}
+        typ = i_.get("type") if i_.get("type") in IN_PRESETS else ("pop" if el["kind"] == "mage" else "blur_in")
+        ease = i_.get("ease") or ("back_out" if typ == "pop" else st["easing"])
+        el["in"] = {"type": typ, "at": max(0.0, float(i_.get("at", 0))), "dur": max(0.0, float(i_.get("dur", 0.6))),
+                    "ease": ease if ease in EASINGS else "expo_out",
+                    "stagger": max(0.0, float(i_.get("stagger", 0.03 if typ == "cascade" else 0)))}
+        o = el.get("out")
+        if o and o.get("type") in OUT_PRESETS:
+            el["out"] = {"type": o["type"], "dur": max(0.0, float(o.get("dur", 0.35))),
+                         "ease": o.get("ease", "in") if o.get("ease", "in") in EASINGS else "in"}
+            el["out"]["at"] = float(o.get("at", sc["dur"] - el["out"]["dur"]))
+        else:
+            el["out"] = None
+        d = el.get("drift") or {}
+        el["drift"] = {"scale": float(d.get("scale", 1.0)), "dy": float(d.get("dy", 0.0))}
+    return sc
 
 
 # ─── tracks ──────────────────────────────────────────────────────────────────
@@ -208,19 +230,30 @@ def bake_stepped(keys, step, end_frame):
     return out
 
 
+def compile_scene(sc, fps):
+    """A normalised scene -> what the preview and the writers need: frames, per-element tracks,
+    and for characters one pose per frame."""
+    frames = max(1, int(round(sc["dur"] * fps)))
+    els = []
+    for el in sc["elements"]:
+        tracks, follower = element_tracks(el, fps, frames)
+        item = {"el": el, "tracks": tracks, "follower": follower}
+        if el["kind"] == "mage":
+            item["poses"] = mage.simulate(el, tracks, fps, frames)
+        els.append(item)
+    return {"name": sc["name"], "frames": frames, "background": sc.get("background"), "elements": els}
+
+
 def scene_tracks(spec):
     """Everything the preview needs, per scene."""
     spec = normalize(spec)
     fps = spec["format"]["fps"]
-    out = []
-    for sc in spec["scenes"]:
-        frames = max(1, int(round(sc["dur"] * fps)))
-        els = []
-        for el in sc["elements"]:
-            tracks, follower = element_tracks(el, fps, frames)
-            els.append({"el": el, "tracks": tracks, "follower": follower})
-        out.append({"name": sc["name"], "frames": frames, "background": sc.get("background"), "elements": els})
-    return spec, out
+    return spec, [compile_scene(sc, fps) for sc in spec["scenes"]]
+
+
+def characters(scene_data):
+    """(poses, variant) for every character in a compiled scene — input for mage.render_sequence."""
+    return [(it["poses"], it["el"]["variant"]) for it in scene_data["elements"] if it["el"]["kind"] == "mage"]
 
 
 # ─── Fusion comp writer ──────────────────────────────────────────────────────
@@ -296,8 +329,10 @@ class _Comp:
                 "\t\t\t},\n\t\t},\n\t},\n}\n")
 
 
-def write_scene_comp(spec, scene_data, index, text_scale, out_path):
-    """text_scale: Fusion Text+ Size per (em px / frame width). Calibrated in settings."""
+def write_scene_comp(spec, scene_data, index, text_scale, out_path, transparent=False):
+    """text_scale: Fusion Text+ Size per (em px / frame width). Calibrated in settings.
+    transparent: no background (alpha 0) so the comp sits over footage on an upper track.
+    Character elements are skipped here; they are rendered separately (mage.render_sequence)."""
     W, H, fps = spec["format"]["width"], spec["format"]["height"], spec["format"]["fps"]
     st = spec["style"]
     frames = scene_data["frames"]
@@ -307,17 +342,17 @@ def write_scene_comp(spec, scene_data, index, text_scale, out_path):
     gen = (f"\t\t\t\tGlobalOut = Input {{ Value = {go}, }},\n"
            f"\t\t\t\tWidth = Input {{ Value = {W}, }},\n\t\t\t\tHeight = Input {{ Value = {H}, }},\n"
            "\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },\n")
-    bg = _hex_rgb(scene_data.get("background") or st["background"], (0, 0, 0))
+    bg = (0, 0, 0) if transparent else _hex_rgb(scene_data.get("background") or st["background"], (0, 0, 0))
     last = c.add("Background1", "Background {\n\t\t\tInputs = {\n" + gen +
                  f"\t\t\t\tTopLeftRed = Input {{ Value = {_num(bg[0])}, }},\n"
                  f"\t\t\t\tTopLeftGreen = Input {{ Value = {_num(bg[1])}, }},\n"
                  f"\t\t\t\tTopLeftBlue = Input {{ Value = {_num(bg[2])}, }},\n"
-                 "\t\t\t\tTopLeftAlpha = Input { Value = 1, },\n\t\t\t},")
+                 f"\t\t\t\tTopLeftAlpha = Input {{ Value = {0 if transparent else 1}, }},\n\t\t\t}},")
 
     def maybe_step(keys):
         return bake_stepped(keys, step, go) if step > 1 else keys
 
-    for n, item in enumerate(scene_data["elements"], 1):
+    for n, item in enumerate((it for it in scene_data["elements"] if it["el"]["kind"] == "text"), 1):
         el, tracks, follower = item["el"], item["tracks"], item["follower"]
         T = f"T{n}"
         em_px = el["size"] * H / CAP_HEIGHT_EM

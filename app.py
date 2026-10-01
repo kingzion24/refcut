@@ -17,14 +17,20 @@ from pydantic import BaseModel
 
 import analyze
 import brain
+import broll
 import kinetic
+import mascot
+import skillset
+import story
+import voice
 
 ROOT = Path(__file__).resolve().parent
 JOBS = ROOT / "jobs"
 JOBS.mkdir(exist_ok=True)
 
 SETTINGS = ROOT / "settings.json"
-DEFAULT_SETTINGS = {"text_scale": 0.5, "font": "Segoe UI"}
+DEFAULT_SETTINGS = {"text_scale": 0.5, "font": "Segoe UI", "whisper_model": "base", "voice_url": voice.DEFAULT_URL}
+WHISPER_MODELS = ("tiny", "base", "small", "medium", "large-v3-turbo")
 
 app = FastAPI(title="RefCut")
 _lock = threading.Lock()
@@ -73,6 +79,10 @@ def _analyze_and_plan(jid, ref_path, url, opts):
     prog = lambda msg, pct: update(jid, progress=msg, pct=pct)
     kinetic_mode = opts["mode"] == "kinetic"
     try:
+        if opts["mode"] == "story":
+            return _plan_story(jid, opts, prog)
+        if opts["mode"] == "mascot":
+            return _plan_mascot(jid, opts, prog)
         if url and not ref_path:
             prog("Downloading reference", 2)
             ref_path = analyze.download_url(url, job_dir)
@@ -93,7 +103,7 @@ def _analyze_and_plan(jid, ref_path, url, opts):
             fmt = {"width": opts["width"], "height": opts["height"], "fps": opts["fps"]}
             prog("Claude is writing the motion script…", 94)
             spec, sid = brain.make_motion_script(job_dir, opts["context"], reference, music, fmt,
-                                                 settings()["font"], opts["motion"])
+                                                 settings()["font"], opts["motion"], opts["mage"])
             spec = kinetic.normalize(spec)
             update(jid, blueprint=spec, session_id=sid, status="ready", progress="Motion script ready", pct=100)
             mark_claude_ok()
@@ -112,6 +122,120 @@ def _analyze_and_plan(jid, ref_path, url, opts):
         update(jid, status="error", error=str(e))
 
 
+def _story_items(opts):
+    """What to edit: the clips on the open Resolve timeline, or files / a folder the user typed."""
+    if opts["source"] == "resolve":
+        tm = _bridge_get("/refcut/timeline-media")
+        if tm.get("error"):
+            raise RuntimeError(f"Couldn't read the Resolve timeline: {tm['error']}")
+        items = [it for it in tm.get("items", []) if it.get("enabled") is not False]
+        if not items:
+            raise RuntimeError(f"The timeline “{tm.get('timeline')}” has no clips from files. Put your footage on it, "
+                               "or switch to “Files / folder”.")
+        return items, tm
+    paths = [x.strip().strip('"') for x in opts["footage_dir"].splitlines() if x.strip()]
+    files = []
+    for p in map(Path, paths):
+        if p.is_dir():
+            files += sorted(f for f in p.iterdir() if f.suffix.lower() in analyze.VIDEO_EXT)
+        elif p.is_file():
+            files.append(p)
+        else:
+            raise RuntimeError(f"Not found: {p}")
+    if not files:
+        raise RuntimeError("Give the footage: a folder or one file path per line")
+    return [{"path": str(f), "name": f.name} for f in files], None
+
+
+def _plan_story(jid, opts, prog):
+    job_dir = JOBS / jid
+    prog("Reading your footage", 2)
+    items, tm = _story_items(opts)
+    if tm:
+        update(jid, resolve_timeline={k: tm.get(k) for k in ("project", "timeline", "fps", "width", "height")})
+    langs = analyze.spoken_languages(opts["spoken"])
+    talk = analyze.analyze_talk(items, job_dir, prog, opts["transcribe"], settings()["whisper_model"], opts["context"],
+                                langs)
+    talk["spoken"] = langs
+    update(jid, talk=talk)
+    first = next(iter(talk["sources"].values()))
+    fps = opts["fps"] if opts["fps_set"] else int(round((tm or {}).get("fps") or first.get("fps") or 30))
+    if opts["aspect"] == "match":
+        w, h = ((tm or {}).get("width") or first.get("width") or 1920), ((tm or {}).get("height") or first.get("height") or 1080)
+    else:
+        w, h = FORMATS.get(opts["aspect"], FORMATS["16:9"])
+    fmt = {"width": int(w), "height": int(h), "fps": int(fps)}
+    reference = None
+    if opts.get("ref_path") or opts.get("url"):
+        ref_path = opts.get("ref_path")
+        if not ref_path:
+            prog("Downloading the reference video", 89)
+            ref_path = analyze.download_url(opts["url"], job_dir)
+        reference = analyze.analyze_reference(ref_path, job_dir, lambda msg, pct: prog("Reference · " + msg, 90), True)
+        update(jid, reference=reference)
+    prog("Claude is watching your footage and writing the edit…", 92)
+    spec, sid = brain.make_story(job_dir, opts["context"], talk, fmt, settings()["font"], opts["target"],
+                                 opts["mage"], opts["captions"], opts["style"], reference)
+    spec["format"] = spec.get("format") or fmt
+    update(jid, blueprint=spec, session_id=sid, status="ready", progress="Edit plan ready", pct=100)
+    mark_claude_ok()
+
+
+def _plan_mascot(jid, opts, prog):
+    """Mascot video: Claude writes the script and scenes, then VoiceStudio speaks each line."""
+    fmt = {"width": opts["width"], "height": opts["height"], "fps": opts["fps"]}
+    prog("Claude is writing the script and directing Mage…", 20)
+    spec, sid = brain.make_mascot(JOBS / jid, opts["context"], fmt, settings()["font"], opts["target"], opts["spoken"])
+    spec["voice"] = {"id": opts["voice"] or "default", "name": opts["voice_name"], "speed": opts["speed"]}
+    spec["language"] = opts["spoken"] if opts["spoken"] in voice.LANG_NAMES else None
+    update(jid, blueprint=spec, session_id=sid, progress="Script ready", pct=60)
+    mark_claude_ok()
+    _voice_job(jid)
+
+
+def _voice_job(jid):
+    """Generate the voice for every line that doesn't have one yet (runs in the caller's thread)."""
+    st = load(jid)
+    update(jid, status="voicing", error=None, progress="Generating the voice")
+    try:
+        n = mascot.make_voices(st["blueprint"], JOBS / jid, settings()["whisper_model"], settings()["voice_url"],
+                               lambda msg, pct: update(jid, progress=msg, pct=60 + int(pct * 0.4)))
+        update(jid, status="ready", progress=f"Voice ready ({n} lines)", pct=100)
+    except Exception as e:
+        update(jid, status="ready", pct=100, progress="Script ready — voice not generated",
+               error=f"{e} The script and scenes are ready; click “Generate voice” once VoiceStudio is open.")
+
+
+def _voice_missing(st):
+    return mascot.compile_spec(st["blueprint"], JOBS / st["id"])[1]["missing"]
+
+
+def _bridge_get(path):
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:9876" + path, timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return {"error": "Resolve is running an older CursorBridge. Re-run setup, restart Resolve and start "
+                             "Workspace → Scripts → CursorBridge again."}
+        return {"error": f"bridge HTTP {e.code}"}
+    except Exception:
+        return {"error": "Can't reach DaVinci Resolve. Open it, then Workspace → Scripts → CursorBridge."}
+
+
+@app.get("/api/resolve/timeline")
+def resolve_timeline():
+    """Summary of the open timeline, so the UI can show what story mode will edit."""
+    tm = _bridge_get("/refcut/timeline-media")
+    if tm.get("error"):
+        return {"ok": False, "error": tm["error"]}
+    items = tm.get("items", [])
+    return {"ok": True, "project": tm.get("project"), "timeline": tm.get("timeline"), "fps": tm.get("fps"),
+            "width": tm.get("width"), "height": tm.get("height"), "clips": len(items),
+            "seconds": round(sum(it["range"][1] - it["range"][0] for it in items), 1),
+            "names": [it["name"] for it in items][:12]}
+
+
 FORMATS = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080), "4:5": (1080, 1350),
            "4k": (3840, 2160)}
 
@@ -121,9 +245,18 @@ async def create_job(reference: UploadFile | None = File(None), url: str = Form(
                      footage_dir: str = Form(""), context: str = Form(""),
                      transcribe: bool = Form(True), mode: str = Form("footage"),
                      music: UploadFile | None = File(None), music_path: str = Form(""),
-                     aspect: str = Form("16:9"), fps: int = Form(30), motion: str = Form("auto")):
+                     aspect: str = Form("16:9"), fps: str = Form("30"), motion: str = Form("auto"),
+                     mage: bool = Form(False), source: str = Form("resolve"), target: str = Form(""),
+                     captions: str = Form("burned"), spoken: str = Form("auto"), voice_id: str = Form(""),
+                     voice_name: str = Form(""), speed: float = Form(1.0), style: str = Form("short")):
     has_ref = bool(reference and reference.filename) or bool(url.strip())
-    if mode == "kinetic":
+    if mode == "story":
+        if source == "resolve" and _resolve_status()["state"] != "connected":
+            raise HTTPException(503, _resolve_status()["detail"])
+    elif mode == "mascot":
+        if not context.strip():
+            raise HTTPException(400, "Say what the video is about, or paste the script")
+    elif mode == "kinetic":
         if not has_ref and not context.strip():
             raise HTTPException(400, "Give a reference video, or describe what you're making")
     elif not has_ref:
@@ -145,13 +278,21 @@ async def create_job(reference: UploadFile | None = File(None), url: str = Form(
     if music_path and not Path(music_path).is_file():
         raise HTTPException(400, f"Music file not found: {music_path}")
     w, h = FORMATS.get(aspect, FORMATS["16:9"])
-    opts = {"mode": mode if mode in ("kinetic", "footage") else "footage", "context": context,
-            "footage_dir": footage_dir.strip().strip('"'), "transcribe": transcribe,
-            "music_path": music_path, "width": w, "height": h, "fps": int(fps), "motion": motion}
+    fps_set = fps.isdigit()
+    captions = captions if captions in ("burned", "srt", "off") else "burned"
+    opts = {"mode": mode if mode in ("kinetic", "footage", "story", "mascot") else "footage", "context": context,
+            "voice": voice_id.strip(), "voice_name": voice_name.strip(), "speed": min(2.0, max(0.5, speed)),
+            "footage_dir": footage_dir.strip() if mode == "story" else footage_dir.strip().strip('"'),
+            "transcribe": transcribe, "music_path": music_path, "width": w, "height": h,
+            "fps": int(fps) if fps_set else 30, "fps_set": fps_set, "motion": motion, "mage": mage,
+            "source": "files" if source == "files" else "resolve", "target": target.strip(), "aspect": aspect,
+            "captions": captions, "spoken": spoken, "style": "youtube" if style == "youtube" else "short",
+            "ref_path": str(ref_path) if ref_path else None, "url": url.strip()}
     st = {"id": jid, "status": "analyzing", "progress": "Starting", "pct": 0, "created": time.time(),
           "mode": opts["mode"], "context": context, "footage_dir": opts["footage_dir"], "url": url.strip(),
-          "music_path": music_path,
-          "ref_name": reference.filename if ref_path else (url.strip() or context.strip()[:60])}
+          "music_path": music_path, "captions": captions, "mage": mage,
+          "ref_name": reference.filename if ref_path else (url.strip() or context.strip()[:60]
+                                                           or ("Resolve timeline" if mode == "story" else ""))}
     with _lock:
         _jobs[jid] = st
     update(jid)
@@ -203,8 +344,12 @@ def refine(jid: str, body: Refine):
     def run():
         try:
             bp, sid = brain.refine_blueprint(JOBS / jid, st["session_id"], body.message)
+            if st.get("mode") == "mascot":                 # keep the voice / language / caption choices
+                bp = {k: st["blueprint"][k] for k in ("voice", "language", "captions") if k in st["blueprint"]} | bp
             update(jid, blueprint=bp, session_id=sid, status="ready", progress="Blueprint updated",
                    chat=history + [{"role": "claude", "text": "Updated the blueprint."}])
+            if st.get("mode") == "mascot":
+                _voice_job(jid)
         except Exception as e:
             update(jid, status="ready", error=str(e), chat=history + [{"role": "claude", "text": f"Error: {e}"}])
     threading.Thread(target=run, daemon=True).start()
@@ -220,12 +365,125 @@ def put_blueprint(jid: str, blueprint: dict):
     return {"ok": True}
 
 
+@app.post("/api/jobs/{jid}/voice")
+def make_voice(jid: str):
+    """Mascot video: (re)generate the voice for lines that changed or have none yet."""
+    st = load(jid)
+    if st.get("mode") != "mascot" or not st.get("blueprint"):
+        raise HTTPException(400, "Only mascot videos have a generated voice")
+    if st.get("status") in ("voicing", "building", "refining"):
+        raise HTTPException(409, "Busy — wait for the current step to finish")
+    vs = voice.status(settings()["voice_url"])
+    if vs["state"] != "connected":
+        raise HTTPException(503, vs["detail"])
+    update(jid, status="voicing", progress="Generating the voice")
+    threading.Thread(target=_voice_job, args=(jid,), daemon=True).start()
+    return {"ok": True}
+
+
+def _mascot_compiled(st, with_audio=True):
+    """(kinetic spec, info, audio paths) for a mascot job."""
+    spec, info = mascot.compile_spec(st["blueprint"], JOBS / st["id"])
+    audio = mascot.write_audio(info, JOBS / st["id"], st.get("music_path")) if with_audio and info["placements"] else {}
+    return spec, info, audio
+
+
+@app.get("/api/jobs/{jid}/audio")
+def job_audio(jid: str):
+    st = load(jid)
+    if st.get("mode") != "mascot":
+        raise HTTPException(404)
+    audio = _mascot_compiled(st)[2]
+    p = audio.get("mix") or audio.get("voice")
+    if not p:
+        raise HTTPException(404)
+    return FileResponse(p)
+
+
 @app.get("/api/jobs/{jid}/preview")
 def preview(jid: str):
     st = load(jid)
     if not st.get("blueprint"):
         raise HTTPException(404, "No motion script yet")
+    if st.get("mode") == "story":
+        return story.preview_payload(st["blueprint"], st["talk"]["sources"], jid, st.get("captions", "burned"),
+                                     st.get("broll"), st.get("music_path"), JOBS / jid)
+    if st.get("mode") == "mascot":
+        spec, info, _ = _mascot_compiled(st, with_audio=False)
+        return kinetic.preview_payload(spec) | {
+            "has_music": False, "voice": {k: info[k] for k in ("missing", "lines", "seconds")},
+            "audio_url": f"/api/jobs/{jid}/audio?k={info['audio_key']}" if info["placements"] else None}
     return kinetic.preview_payload(st["blueprint"]) | {"has_music": bool(st.get("music_path"))}
+
+
+class Options(BaseModel):
+    captions: str | None = None
+
+
+@app.put("/api/jobs/{jid}/options")
+def put_options(jid: str, body: Options):
+    load(jid)
+    if body.captions in ("burned", "srt", "off"):
+        update(jid, captions=body.captions)
+    return {"ok": True}
+
+
+class Broll(BaseModel):
+    density: str = "medium"
+    notes: str = ""
+
+
+@app.post("/api/jobs/{jid}/broll")
+def make_broll(jid: str, body: Broll):
+    """Motion-graphic B-roll for a talking video: Claude follows the bundled motion-broll skill."""
+    st = load(jid)
+    if st.get("mode") != "story" or not st.get("blueprint"):
+        raise HTTPException(400, "Motion B-roll needs a talking-video edit plan")
+    if st.get("status") in ("building", "refining", "broll"):
+        raise HTTPException(409, "Busy — wait for the current step to finish")
+    rt = broll.runtime_status()
+    if rt["state"] == "no_node":
+        raise HTTPException(503, rt["detail"])
+    update(jid, status="broll", build_log=[], progress="Making motion B-roll", error=None)
+
+    def run():
+        try:
+            gen = broll.run(JOBS / jid, st["blueprint"], st["talk"]["sources"], st.get("captions", "burned"),
+                            st.get("context", ""), body.density, body.notes)
+            clips = []
+            while True:
+                try:
+                    kind, text = next(gen)
+                except StopIteration as stop:
+                    clips = stop.value or []
+                    break
+                append_log(jid, kind, text)
+            update(jid, status="ready", progress="Motion B-roll ready" if clips else "No B-roll made",
+                   **({"broll": clips} if clips else {}))
+        except Exception as e:
+            traceback.print_exc()
+            append_log(jid, "err", str(e))
+            update(jid, status="ready", progress="Motion B-roll failed")
+    threading.Thread(target=run, daemon=True).start()
+    return {"ok": True}
+
+
+@app.delete("/api/jobs/{jid}/broll/{clip_id}")
+def delete_broll(jid: str, clip_id: str):
+    st = load(jid)
+    update(jid, broll=[c for c in st.get("broll") or [] if c["id"] != clip_id])
+    return {"ok": True}
+
+
+@app.get("/api/jobs/{jid}/captions.srt")
+def captions_srt(jid: str):
+    st = load(jid)
+    if st.get("mode") != "story" or not st.get("blueprint"):
+        raise HTTPException(404)
+    spec, tl = story.compile_story(st["blueprint"], st["talk"]["sources"], "srt")
+    p = JOBS / jid / "captions.srt"
+    p.write_text(story.srt(tl["captions"], tl["fps"]), encoding="utf-8")
+    return FileResponse(p, filename=f"{(spec.get('title') or jid)[:40]}.srt")
 
 
 @app.get("/api/jobs/{jid}/music")
@@ -240,7 +498,8 @@ def job_music(jid: str):
 def comps_zip(jid: str):
     import zipfile
     st = load(jid)
-    _, files = kinetic.write_all(st["blueprint"], JOBS / jid / "comps", settings()["text_scale"])
+    bp = _mascot_compiled(st, with_audio=False)[0] if st.get("mode") == "mascot" else st["blueprint"]
+    _, files = kinetic.write_all(bp, JOBS / jid / "comps", settings()["text_scale"])
     zp = JOBS / jid / "fusion_comps.zip"
     with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
         for f in files:
@@ -260,6 +519,10 @@ def put_settings(body: dict):
         s["text_scale"] = min(3.0, max(0.05, float(body["text_scale"])))
     if body.get("font"):
         s["font"] = str(body["font"])[:80]
+    if body.get("whisper_model") in WHISPER_MODELS:
+        s["whisper_model"] = body["whisper_model"]
+    if str(body.get("voice_url") or "").startswith("http"):
+        s["voice_url"] = str(body["voice_url"]).rstrip("/")[:200]
     SETTINGS.write_text(json.dumps(s, indent=1), encoding="utf-8")
     return s
 
@@ -281,7 +544,20 @@ def build(jid: str, body: Build):
     project = body.project.strip() or st["blueprint"].get("title") or f"RefCut {jid}"
     update(jid, status="building", build_log=[], progress="Building in Resolve")
 
-    if st.get("mode") == "kinetic":
+    if st.get("mode") == "story":
+        project = body.project.strip() or st["blueprint"].get("title") or "RefCut edit"
+        events = lambda: brain.build_story(JOBS / jid, st["blueprint"], st["talk"]["sources"], project,
+                                           settings()["text_scale"], st.get("captions", "burned"), st.get("broll"),
+                                           st.get("music_path"))
+    elif st.get("mode") == "mascot":
+        spec_c, info, audio = _mascot_compiled(st)
+        if info["missing"]:
+            update(jid, status="ready")
+            raise HTTPException(400, f"{info['missing']} line(s) have no voice yet — click “Generate voice” first")
+        tracks = [{"path": audio["voice"], "track": 1, "name": "Voice"}] + (
+            [{"path": audio["music"], "track": 2, "name": "Music bed"}] if audio.get("music") else [])
+        events = lambda: brain.build_kinetic(JOBS / jid, spec_c, project, None, settings()["text_scale"], tracks)
+    elif st.get("mode") == "kinetic":
         events = lambda: brain.build_kinetic(JOBS / jid, st["blueprint"], project, st.get("music_path"),
                                              settings()["text_scale"])
     else:
@@ -380,9 +656,13 @@ def _resolve_status():
             "detail": f"{ver} · project: {proj.get('name') or 'none open'}"}
 
 
+_skills = []
+
+
 @app.get("/api/status")
 def status():
-    return {"claude": dict(_claude), "resolve": _resolve_status(), "ffmpeg": bool(shutil.which("ffmpeg"))}
+    return {"claude": dict(_claude), "resolve": _resolve_status(), "ffmpeg": bool(shutil.which("ffmpeg")),
+            "skills": _skills, "broll_runtime": broll.runtime_status(), "voice": voice.status(settings()["voice_url"])}
 
 
 @app.post("/api/status/claude")
@@ -394,6 +674,10 @@ def recheck_claude():
 @app.on_event("startup")
 def _startup_checks():
     threading.Thread(target=_check_claude, daemon=True).start()
+    try:                                   # bundled skills -> this machine's Claude (~/.claude/skills)
+        _skills[:] = skillset.install()
+    except Exception as e:
+        _skills[:] = [{"name": "bundled skills", "state": "error", "detail": str(e), "description": ""}]
 
 
 @app.get("/")

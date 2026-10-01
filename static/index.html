@@ -51,6 +51,7 @@
   button.ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--line); font-weight: 500; }
   button:disabled { opacity: .45; cursor: not-allowed; }
   .row { display: flex; gap: 8px; align-items: center; }
+  a { color: var(--accent2); }
   .check { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
   .jobs { border-top: 1px solid var(--line); padding-top: 14px; }
   .job { padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; }
@@ -95,10 +96,56 @@
   .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--panel2); color: var(--muted); }
   .lightbox { position: fixed; inset: 0; background: #000d; display: none; place-items: center; z-index: 9; cursor: zoom-out; }
   .lightbox img { max-width: 95vw; max-height: 95vh; }
-  .tabs { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
   .tabs button { background: transparent; color: var(--muted); font-weight: 500; padding: 8px; border-radius: 7px; }
   .tabs button.on { background: var(--panel2); color: var(--text); }
-  body.mode-footage .only-kinetic, body.mode-kinetic .only-footage { display: none !important; }
+  body:not(.mode-kinetic) .only-kinetic, body:not(.mode-footage) .only-footage, body:not(.mode-story) .only-story,
+  body.mode-footage .only-creative, body.mode-story .not-story { display: none !important; }
+  .tabs button { font-size: 12px; padding: 8px 2px; white-space: nowrap; }
+  body:not(.mode-kinetic):not(.mode-mascot):not(.mode-story) .only-km.also-story,
+  body:not(.mode-kinetic):not(.mode-mascot) .only-km:not(.also-story), body:not(.mode-mascot) .only-mascot:not(.only-story-inline),
+  body:not(.mode-mascot):not(.mode-story) .only-story-inline,
+  body.mode-mascot .not-story, body.mode-mascot .mage-toggle { display: none !important; }
+  .say-row { display: grid; grid-template-columns: 54px 1fr 74px 74px; gap: 6px; align-items: start; margin: 4px 0 8px; }
+  .say-row textarea { min-height: 38px; height: 44px; padding: 7px 9px; }
+  .say-row select, .say-row input { padding: 7px 8px; font-size: 12.5px; }
+  .seg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .seg2 button { background: var(--panel); color: var(--muted); border: 1px solid var(--line); font-weight: 500; padding: 8px; }
+  .seg2 button.on { color: var(--text); border-color: var(--accent); }
+  .tl-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-top: 8px; }
+  .tl-card b { font-weight: 600; } .tl-card small { color: var(--muted); display: block; }
+  .mage-toggle { display: flex; gap: 12px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer;
+    text-transform: none; letter-spacing: 0; color: var(--text); margin: 0; }
+  .mage-toggle:has(input:checked) { border-color: #0077B6; box-shadow: 0 0 0 1px #0077B6 inset; }
+  .mage-toggle canvas { width: 44px; height: 44px; flex: none; }
+  .mage-toggle div { font-size: 13px; line-height: 1.35; } .mage-toggle small { color: var(--muted); display: block; }
+  .mage-toggle input { margin-left: auto; }
+  .kp-layer { position: absolute; inset: 0; pointer-events: none; }
+  .kp-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .sp-videos, .sp-card, .sp-over, .sp-broll, .sp-cut, .sp-cutbox { position: absolute; inset: 0; }
+  .sp-cutbox { overflow: hidden; }
+  .sp-lane.cuts i { background: #2dd4bf; } .sp-legend .cuts::before { background: #2dd4bf; }
+  body.mode-story .ref-block { display: block !important; }
+  .chapters { background: #0a0b0c; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font: 12.5px/1.7 ui-monospace, Consolas, monospace; white-space: pre-wrap; user-select: all; }
+  .sp-lane.broll i { background: #b18cff; } .sp-legend .broll::before { background: #b18cff; }
+  .br-row { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .br-row small { color: var(--muted); display: block; }
+  .sp-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: center; }
+  .sp-items button.card { background: #3a2a22; }
+  .sp-items button.on { background: var(--accent); color: #111; }
+  .sp-lanes { position: relative; margin-top: 6px; }
+  .sp-lane { position: relative; height: 7px; background: var(--panel2); border-radius: 3px; margin-top: 3px; overflow: hidden; }
+  .sp-lane i { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+  .sp-lane.callouts i { background: var(--warn); } .sp-lane.mage i { background: #0077B6; } .sp-lane.caps i { background: #6b7280; }
+  .sp-legend { display: flex; gap: 12px; font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .sp-legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .sp-legend .callouts::before { background: var(--warn); } .sp-legend .mage::before { background: #0077B6; } .sp-legend .caps::before { background: #6b7280; }
+  .clip-row { display: grid; grid-template-columns: 34px 1.3fr 64px 76px 76px 64px auto; gap: 6px; align-items: center; margin-top: 6px; }
+  .clip-row input, .clip-row select { padding: 7px 8px; font-size: 12.5px; }
+  .clip-say { grid-column: 2 / -1; color: var(--muted); font-size: 12px; margin-top: -2px; }
+  .ov-row { display: grid; grid-template-columns: 1.3fr 90px 70px 70px auto; gap: 6px; align-items: center; margin-top: 6px; }
+  .ov-row input, .ov-row select { padding: 7px 8px; font-size: 12.5px; }
+  .subhead { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 14px 0 2px; }
   .opt { text-transform: none; letter-spacing: 0; }
   .hint { color: var(--muted); font-size: 12px; display: block; margin-top: 4px; }
   select, input[type=number] { width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 9px 10px; font: inherit; }
@@ -133,6 +180,7 @@
   <div class="health" id="health">
     <button class="stat-pill" id="pillClaude"><i class="dot"></i><span>Claude</span><em>checking…</em></button>
     <button class="stat-pill" id="pillResolve"><i class="dot"></i><span>DaVinci</span><em>checking…</em></button>
+    <button class="stat-pill" id="pillVoice"><i class="dot"></i><span>Voice</span><em>checking…</em></button>
   </div>
   <div class="status-pop" id="statusPop" hidden></div>
 </header>
@@ -140,10 +188,23 @@
   <aside>
     <div class="tabs" id="modeTabs">
       <button data-mode="kinetic" class="on">Kinetic text</button>
-      <button data-mode="footage">Edit footage</button>
+      <button data-mode="story">Talking video</button>
+      <button data-mode="mascot">Mascot video</button>
+      <button data-mode="footage">Match a ref</button>
     </div>
-    <div>
-      <label>Reference video <span class="only-kinetic opt">(optional)</span></label>
+    <div class="only-story">
+      <label>Kind of video</label>
+      <div class="seg2" id="styleTabs"><button data-style="short" class="on">Short · dev log</button><button data-style="youtube">YouTube story</button></div>
+      <small class="hint" id="styleHint"></small>
+    </div>
+    <div class="only-story">
+      <label>Your footage</label>
+      <div class="seg2" id="srcTabs"><button data-src="resolve" class="on">My Resolve timeline</button><button data-src="files">Files / folder</button></div>
+      <div id="srcResolve"><div class="tl-card" id="tlCard">Put your long footage on a timeline in Resolve, then <a href="#" id="tlRead">read the timeline</a>.</div></div>
+      <div id="srcFiles" hidden><textarea id="storyFiles" style="min-height:60px;margin-top:8px" placeholder="D:\Footage\devlog-day12.mp4&#10;or a folder: D:\Footage\Day12"></textarea></div>
+    </div>
+    <div class="not-story ref-block">
+      <label>Reference video <span class="only-kinetic opt">(optional)</span><span class="only-story opt">(optional: a video to feel like)</span></label>
       <div class="drop" id="drop">Drop a video here or click to choose
         <input type="file" id="file" accept="video/*" hidden>
         <div id="preview"></div>
@@ -159,37 +220,59 @@
       <label>Context <span class="opt">(a line is enough)</span></label>
       <textarea id="context" placeholder="e.g. same vibe but for my Zanzibar trip, 30s for reels"></textarea>
     </div>
-    <div class="only-kinetic">
-      <label>Music to sync to <span class="opt">(optional)</span></label>
+    <div class="only-mascot grid3" style="grid-template-columns:1.4fr 1fr">
+      <div><label>Voice</label><select id="mVoice"><option value="default">Default voice</option></select></div>
+      <div><label>Language</label><select id="mLang"><option value="en">English</option><option value="sw">Kiswahili</option><option value="en+sw">English + Kiswahili</option></select></div>
+    </div>
+    <div class="only-mascot grid3" style="grid-template-columns:1fr 1fr">
+      <div><label>Length</label><select id="mTarget"><option value="">Auto (20–45 s)</option><option>~15 s</option><option>~30 s</option><option>~60 s</option><option>~90 s</option></select></div>
+      <div><label>Voice speed</label><select id="mSpeed"><option value="0.9">Slower</option><option value="1" selected>Normal</option><option value="1.1">Faster</option></select></div>
+    </div>
+    <small class="hint only-mascot" id="mVoiceHint" style="margin-top:-8px"></small>
+    <div class="only-km also-story">
+      <label><span class="only-kinetic">Music to sync to</span><span class="only-mascot only-story-inline">Music bed</span> <span class="opt">(optional)</span></label>
       <div class="row"><input type="text" id="musicPath" placeholder="D:\Music\track.mp3 — or">
         <button class="ghost small" id="musicBtn">Choose…</button><input type="file" id="musicFile" accept="audio/*,video/*" hidden></div>
       <small class="hint" id="musicName"></small>
     </div>
-    <div class="only-kinetic grid3">
+    <div class="only-km grid3">
       <div><label>Format</label><select id="aspect"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:5</option><option value="4k">4K 16:9</option></select></div>
       <div><label>FPS</label><select id="fps"><option>30</option><option>24</option><option>25</option><option>60</option></select></div>
-      <div><label>Motion</label><select id="motion"><option value="auto">Auto</option><option value="smooth">Smooth</option><option value="stepped">Stop-motion</option></select></div>
+      <div class="only-kinetic"><label>Motion</label><select id="motion"><option value="auto">Auto</option><option value="smooth">Smooth</option><option value="stepped">Stop-motion</option></select></div>
     </div>
-    <label class="check"><input type="checkbox" id="transcribe" checked> Transcribe speech in reference</label>
+    <div class="only-story grid3">
+      <div><label>Format</label><select id="sAspect"><option value="match">Match timeline</option><option>9:16</option><option>16:9</option><option>1:1</option><option>4:5</option></select></div>
+      <div><label>Length</label><select id="sTarget"><option value="">Auto</option><option>~30 s</option><option>~60 s</option><option>~90 s</option><option>~3 min</option><option>~6 min</option><option>~10 min</option><option>~15 min</option><option value="keep everything important, just tighten it (cut filler and dead air)">Just tighten</option></select></div>
+      <div><label>Captions</label><select id="sCaptions"><option value="burned">Burned in</option><option value="srt">Subtitle track</option><option value="off">Off</option></select></div>
+    </div>
+    <div class="only-story"><label>You speak</label>
+      <select id="sSpoken"><option value="auto">One language (auto-detect)</option><option value="en">English</option><option value="sw">Kiswahili</option><option value="en+sw">English + Kiswahili, mixed</option></select></div>
+    <label class="mage-toggle only-creative" for="useMage"><canvas id="mageIcon" width="88" height="88"></canvas>
+      <div><b>Feature Mage</b><small>Mali Daftari's mascot as a motion character — reacts, points attention, hosts the intro and outro.</small></div>
+      <input type="checkbox" id="useMage"></label>
+    <label class="check not-story"><input type="checkbox" id="transcribe" checked> Transcribe speech in reference</label>
     <button id="go">Analyze &amp; plan</button>
     <details class="settings"><summary>Fusion settings</summary>
       <label>Default font</label><input type="text" id="setFont" placeholder="Segoe UI">
       <label style="margin-top:10px">Text size calibration</label>
       <div class="row"><input type="number" id="setScale" step="0.01" min="0.05" max="3"><button class="ghost small" id="saveSettings">Save</button></div>
       <small class="hint">If text in Resolve comes out bigger/smaller than the preview, scale this by the same ratio (e.g. 2× too big → halve it).</small>
+      <label style="margin-top:10px">Speech recognition</label>
+      <select id="setWhisper"><option value="tiny">Fastest (tiny)</option><option value="base">Balanced (base)</option><option value="small">Accurate (small)</option><option value="medium">More accurate (medium, slow)</option><option value="large-v3-turbo">Best for Kiswahili (large-v3-turbo, 1.6 GB)</option></select>
     </details>
     <div class="jobs"><label>Recent</label><div id="jobs"></div></div>
   </aside>
   <section class="view" id="view">
     <div class="empty"><div><h2>Show it, don't explain it.</h2>
-      Drop a reference, add a line of context.<br>
-      RefCut works out the recipe and builds it in DaVinci Resolve — kinetic type straight into Fusion.</div></div>
+      Drop a reference, add a line of context — or lay your footage out in Resolve.<br>
+      RefCut writes the edit and builds it in DaVinci Resolve: kinetic type in Fusion, your cuts, captions and Mage.</div></div>
   </section>
 </main>
 <div class="lightbox" id="lightbox"><img></div>
 
 <script type="module">
-import { KineticPlayer } from "/static/kinetic.js";
+import { KineticPlayer, drawMage } from "/static/kinetic.js";
+import { StoryPlayer } from "/static/story.js";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt = t => t == null ? "–" : (+t).toFixed(2) + "s";
@@ -219,10 +302,22 @@ async function health() {
     const r = STATUS.resolve[s.resolve.state] || ["warn", s.resolve.state];
     setPill("#pillClaude", c[0], c[0] === "ok" && s.claude.version ? `Connected · v${s.claude.version}` : c[1], s.claude.detail);
     setPill("#pillResolve", r[0], s.resolve.state === "connected" ? (s.resolve.project || "Connected") : r[1], s.resolve.detail);
+    const vo = s.voice || {state: "off", voices: []};
+    setPill("#pillVoice", vo.state === "connected" ? "ok" : "warn", vo.state === "connected" ? "VoiceStudio" : "not running", vo.detail);
+    const vKey = JSON.stringify(vo.voices.map(v => v.id));
+    if (vKey !== health.vKey) {                 // refill the voice list when VoiceStudio's voices change
+      health.vKey = vKey;
+      let keep = $("#mVoice").value; try { keep = localStorage.getItem("refcut.voice") || keep; } catch {}
+      $("#mVoice").innerHTML = (vo.voices.length ? vo.voices : [{id: "default", name: "Default voice"}]).map(v =>
+        `<option value="${esc(v.id)}">${esc(v.name)}${v.yours ? "" : " (built-in)"}</option>`).join("");
+      if ([...$("#mVoice").options].some(o => o.value === keep)) $("#mVoice").value = keep;
+    }
+    $("#mVoiceHint").textContent = vo.state === "connected" ? "" : "VoiceStudio isn't open, so the script will be written without a voice. Open it and click “Generate voice” later.";
     if (popFor) showPop(popFor);
     document.querySelectorAll("#buildBtn").forEach(b => b.title = s.resolve.state === "connected" ? "" : s.resolve.detail);
   } catch {
     setPill("#pillClaude", "bad", "RefCut server offline", ""); setPill("#pillResolve", "bad", "RefCut server offline", "");
+    setPill("#pillVoice", "bad", "RefCut server offline", "");
   }
 }
 function setPill(sel, cls, text, title) {
@@ -241,8 +336,20 @@ function showPop(which) {
     }[c.state] || "";
     pop.innerHTML = `<h4><i class="dot ${cls}"></i>Claude ${c.version ? `<span class="pill">v${esc(c.version)}</span>` : ""}</h4>
       <p>${esc(c.detail)}${c.checked ? ` · checked ${new Date(c.checked * 1000).toLocaleTimeString()}` : ""}</p>${fix}
+      ${(s.skills || []).length ? `<p style="margin-bottom:6px">Skills RefCut gives this machine's Claude:</p><ol style="list-style:none;padding:0">${s.skills.map(k =>
+        `<li title="${esc(k.detail)}"><i class="dot ${k.state === "error" ? "bad" : "ok"}"></i> <b style="color:var(--text)">${esc(k.name)}</b> ${k.state === "yours" ? "(your own copy is installed)" : k.state === "error" ? "· not installed" : ""}</li>`).join("")}</ol>` : ""}
       <div class="actions"><button class="ghost small" id="recheckClaude">Re-check</button><button class="ghost small" id="closePop">Close</button></div>`;
     $("#recheckClaude").onclick = async () => { await api("/api/status/claude", {method: "POST"}); setTimeout(health, 300); };
+  } else if (which === "voice") {
+    const vo = s.voice || {state: "off", voices: []}, ok = vo.state === "connected";
+    pop.innerHTML = `<h4><i class="dot ${ok ? "ok" : "warn"}"></i>Voice (VoiceStudio)</h4><p>${esc(vo.detail)}</p>
+      ${ok ? `<p>Clone or design a voice in VoiceStudio and it appears in the Mascot video voice list.</p>` : `<ol>
+        <li>Install <b>VoiceStudio</b> from voicestudio.sh (free, runs on this PC)</li>
+        <li>Open it and let it download its voice model</li>
+        <li>Clone your voice or design one for Mage</li>
+        <li>Keep it open while RefCut generates voices; this light turns green</li></ol>`}
+      <div class="actions"><button class="ghost small" id="recheckResolve">Re-check</button><button class="ghost small" id="closePop">Close</button></div>`;
+    $("#recheckResolve").onclick = health;
   } else {
     const r = s.resolve, cls = (STATUS.resolve[r.state] || ["warn"])[0];
     const fix = r.state === "connected" ? "" : `<ol>
@@ -258,6 +365,8 @@ function showPop(which) {
 }
 $("#pillClaude").onclick = () => popFor === "claude" ? $("#closePop").click() : showPop("claude");
 $("#pillResolve").onclick = () => popFor === "resolve" ? $("#closePop").click() : showPop("resolve");
+$("#pillVoice").onclick = () => popFor === "voice" ? $("#closePop").click() : showPop("voice");
+try { $("#mLang").value = localStorage.getItem("refcut.mlang") || "en"; } catch {}
 
 // ---- input ----
 const drop = $("#drop"), fileIn = $("#file");
@@ -272,14 +381,18 @@ function showPreview() {
 }
 try { $("#footage").value = localStorage.getItem("refcut.footage") || ""; } catch {}
 
-let mode = "kinetic";
+let mode = "kinetic", storySrc = "resolve", storyStyle = "short";
 try { mode = localStorage.getItem("refcut.mode") || "kinetic"; } catch {}
 function setMode(m) {
   mode = m; document.body.className = "mode-" + m;
   document.querySelectorAll("#modeTabs button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
-  $("#context").placeholder = m === "kinetic"
-    ? "e.g. launch video for Flowdesk, an AI inbox for teams. 20s, calm then punchy. End on 'Available today.'"
-    : "e.g. same vibe but for my Zanzibar trip, 30s for reels";
+  $("#context").placeholder = {
+    kinetic: "e.g. launch video for Mali Daftari's offline sync. 20s, calm then punchy. End on 'Available today.'",
+    story: "e.g. day 12 of building Mali Daftari: I got offline sync working. TikTok short, hook with the demo, Mage reacts when it works",
+    mascot: "e.g. explain Mali Daftari's offline sync to shop owners: sales save on the phone and sync later. Or paste your full script.",
+    footage: "e.g. same vibe but for my Zanzibar trip, 30s for reels",
+  }[m];
+  if (m === "story") readTimeline();
   try { localStorage.setItem("refcut.mode", m); } catch {}
 }
 document.querySelectorAll("#modeTabs button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
@@ -289,11 +402,11 @@ $("#musicBtn").onclick = () => $("#musicFile").click();
 $("#musicFile").onchange = () => { const f = $("#musicFile").files[0]; $("#musicName").textContent = f ? "Using " + f.name : ""; if (f) $("#musicPath").value = ""; };
 
 async function loadSettings() {
-  try { const s = await api("/api/settings"); $("#setFont").value = s.font; $("#setScale").value = s.text_scale; } catch {}
+  try { const s = await api("/api/settings"); $("#setFont").value = s.font; $("#setScale").value = s.text_scale; $("#setWhisper").value = s.whisper_model; } catch {}
 }
 $("#saveSettings").onclick = async () => {
   await api("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({font: $("#setFont").value, text_scale: +$("#setScale").value})});
+    body: JSON.stringify({font: $("#setFont").value, text_scale: +$("#setScale").value, whisper_model: $("#setWhisper").value})});
   $("#saveSettings").textContent = "Saved"; setTimeout(() => $("#saveSettings").textContent = "Save", 1200);
 };
 loadSettings();
@@ -306,12 +419,29 @@ $("#go").onclick = async () => {
   fd.append("context", $("#context").value);
   fd.append("transcribe", $("#transcribe").checked);
   fd.append("mode", mode);
-  if (mode === "kinetic") {
+  if (mode !== "footage") fd.append("mage", $("#useMage").checked);
+  if (mode === "story") {
+    fd.set("footage_dir", $("#storyFiles").value); fd.append("source", storySrc);
+    fd.append("aspect", $("#sAspect").value); fd.append("fps", "match");
+    fd.append("target", $("#sTarget").value); fd.append("captions", $("#sCaptions").value);
+    fd.append("spoken", $("#sSpoken").value); fd.append("style", storyStyle);
+    if ($("#musicFile").files[0]) fd.append("music", $("#musicFile").files[0]);
+    fd.append("music_path", $("#musicPath").value);
+    try { localStorage.setItem("refcut.spoken", $("#sSpoken").value); } catch {}
+    fd.set("transcribe", true);
+  }
+  if (mode === "mascot") {
+    const v = $("#mVoice");
+    fd.append("voice_id", v.value); fd.append("voice_name", v.selectedOptions[0]?.textContent || "");
+    fd.append("spoken", $("#mLang").value); fd.append("target", $("#mTarget").value); fd.append("speed", $("#mSpeed").value);
+    try { localStorage.setItem("refcut.voice", v.value); localStorage.setItem("refcut.mlang", $("#mLang").value); } catch {}
+  }
+  if (mode === "kinetic" || mode === "mascot") {
     if ($("#musicFile").files[0]) fd.append("music", $("#musicFile").files[0]);
     fd.append("music_path", $("#musicPath").value);
     fd.append("aspect", $("#aspect").value); fd.append("fps", $("#fps").value); fd.append("motion", $("#motion").value);
   }
-  try { localStorage.setItem("refcut.footage", $("#footage").value); } catch {}
+  try { localStorage.setItem("refcut.footage", $("#footage").value); localStorage.setItem("refcut.mage", $("#useMage").checked ? "1" : ""); } catch {}
   $("#go").disabled = true;
   try { const {id} = await api("/api/jobs", {method: "POST", body: fd}); open(id); loadJobs(); }
   catch (e) { alert(e.message); }
@@ -321,7 +451,7 @@ $("#go").onclick = async () => {
 async function loadJobs() {
   const jobs = await api("/api/jobs");
   $("#jobs").innerHTML = jobs.map(j => `<div class="job ${j.id===current?"active":""}" data-id="${j.id}">
-    ${esc(j.title || j.ref_name || j.id)}<small>${j.mode === "kinetic" ? "kinetic · " : ""}${esc(j.status)} · ${new Date(j.created*1000).toLocaleString()}</small></div>`).join("")
+    ${esc(j.title || j.ref_name || j.id)}<small>${{kinetic: "kinetic · ", story: "talking video · ", mascot: "mascot video · "}[j.mode] || ""}${esc(j.status)} · ${new Date(j.created*1000).toLocaleString()}</small></div>`).join("")
     || `<div class="job"><small>No jobs yet</small></div>`;
   document.querySelectorAll(".job[data-id]").forEach(el => el.onclick = () => open(el.dataset.id));
 }
@@ -347,12 +477,14 @@ const SECTION_COLORS = ["#ff6a3d","#3dd6ff","#ffc53d","#b18cff","#3ddc84","#ff7a
 
 function render(st) {
   const v = $("#view");
-  if (st.mode === "kinetic" && st.blueprint && st.status !== "analyzing") return renderKinetic(st);
+  if ((st.mode === "kinetic" || st.mode === "mascot") && st.blueprint && st.status !== "analyzing") return renderKinetic(st);
   kinetic.jid = null; kinetic.player?.destroy(); kinetic.player = null;
+  if (st.mode === "story" && st.blueprint && st.status !== "analyzing") return renderStory(st);
+  story.jid = null; story.player?.destroy(); story.player = null;
   if (st.status === "analyzing" || (!st.blueprint && st.status !== "error")) {
     v.innerHTML = `<div class="card"><h3>Working</h3><div>${esc(st.progress)}</div>
       <div class="progress"><div style="width:${st.pct||0}%"></div></div>
-      <small style="color:var(--muted)">Reference: ${esc(st.ref_name)}</small></div>` + refCard(st);
+      <small style="color:var(--muted)">${st.mode === "story" ? "Footage" : "Reference"}: ${esc(st.ref_name)}</small></div>` + refCard(st);
     return;
   }
   if (st.status === "error" && !st.blueprint) { v.innerHTML = `<div class="err-box">${esc(st.error)}</div>` + refCard(st); return; }
@@ -455,8 +587,8 @@ $("#lightbox").onclick = () => $("#lightbox").style.display = "none";
 
 // ---- kinetic mode ----
 const kinetic = { jid: null, bp: null, player: null, saveTimer: null };
-const IN_TYPES = ["blur_in","rise","fade","punch","cascade","cut","grow","drop","slide_left","slide_right","track_in","tilt_in"];
-const OUT_TYPES = ["","blur_out","fade","rise","cut","shrink","punch_out","drop","slide_left","slide_right","track_out"];
+const IN_TYPES = ["blur_in","rise","fade","punch","cascade","cut","grow","pop","peek","drop","slide_left","slide_right","track_in","tilt_in"];
+const OUT_TYPES = ["","blur_out","fade","rise","cut","shrink","punch_out","pop_out","sink","drop","slide_left","slide_right","track_out"];
 const opt = (list, v) => list.map(x => `<option value="${x}" ${x === (v ?? "") ? "selected" : ""}>${x || "hold"}</option>`).join("");
 
 function renderKinetic(st) {
@@ -472,6 +604,9 @@ function renderKinetic(st) {
         <div id="kquestions"></div>
         <div class="card"><h3>Preview</h3><div id="kplayer"></div>
           <small class="hint">Same keyframes and easing curves as the Fusion comps. Font rendering and blur look slightly different in the browser.</small></div>
+        ${st.mode === "mascot" ? `<div class="card"><h3>Voice</h3>
+          <div class="row"><div style="flex:1" id="kvoice"></div><button class="ghost" id="voiceBtn">Generate voice</button></div>
+          <small class="hint">Each scene's line is spoken by VoiceStudio; the scene lasts as long as its line. Edit a line below, then generate again (only changed lines are redone).</small></div>` : ""}
         <div class="card"><h3>Scenes <span class="opt" style="float:right" id="ktotal"></span></h3><div id="kscenes"></div>
           <div class="actions" style="margin-top:8px"><button class="ghost small" id="addScene">+ Scene</button></div></div>
         <div class="card"><h3>Look</h3><div class="grid3" id="klook"></div></div>
@@ -490,13 +625,22 @@ function renderKinetic(st) {
         ${refCard(st)}
       </div>`;
       kinetic.player = new KineticPlayer($("#kplayer"));
+      if ($("#voiceBtn")) $("#voiceBtn").onclick = async () => {
+        clearTimeout(kinetic.saveTimer);
+        try {
+          await api(`/api/jobs/${st.id}/blueprint`, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(kinetic.bp)});
+          kinetic.dirty = false;
+          await api(`/api/jobs/${st.id}/voice`, {method: "POST"});
+        } catch (e) { return alert(e.message); }
+        clearInterval(poll); poll = setInterval(refresh, 1500); refresh();
+      };
       $("#refineBtn").onclick = doRefine;
       $("#refine").onkeydown = e => { if (e.key === "Enter") doRefine(); };
       $("#buildBtn").onclick = doBuild;
       $("#addScene").onclick = () => { kinetic.bp.scenes.push({name: "New scene", dur: 1.2, elements: [{text: "New line", x: .5, y: .5, size: .08, in: {type: "blur_in", at: 0, dur: .6}}]}); drawScenes(); saveSpec(); };
       document.querySelectorAll(".sheets img").forEach(im => im.onclick = () => { $("#lightbox img").src = im.src; $("#lightbox").style.display = "grid"; });
     }
-    kinetic.jid = st.id; kinetic.bpJson = bpJson; kinetic.bp = JSON.parse(bpJson);
+    kinetic.jid = st.id; kinetic.bpJson = bpJson; kinetic.bp = JSON.parse(bpJson); kinetic.voiced = st.mode === "mascot";
     const bp = kinetic.bp;
     $("#ktitle").textContent = bp.title || "Untitled";
     $("#kintent").textContent = bp.intent || "";
@@ -509,11 +653,21 @@ function renderKinetic(st) {
   // live bits (every poll)
   $("#kerr").innerHTML = st.error ? `<div class="err-box">${esc(st.error)}</div>` : "";
   $("#kchat").innerHTML = (st.chat || []).map(m => `<div class="msg ${m.role}">${esc(m.text)}</div>`).join("");
-  const busy = ["building", "refining"].includes(st.status);
+  const busy = ["building", "refining", "voicing"].includes(st.status);
   $("#refine").disabled = $("#refineBtn").disabled = busy;
   $("#refineBtn").textContent = st.status === "refining" ? "Revising…" : "Update";
   $("#buildBtn").disabled = busy;
   $("#buildBtn").textContent = st.status === "building" ? "Building…" : st.status === "built" ? "Rebuild" : "Build it";
+  if ($("#voiceBtn")) {
+    const v = kinetic.voiceInfo, was = kinetic.wasVoicing;
+    kinetic.wasVoicing = st.status === "voicing";
+    if (was && !kinetic.wasVoicing) loadPreview();          // new audio: reload the preview
+    $("#voiceBtn").disabled = busy;
+    $("#voiceBtn").textContent = st.status === "voicing" ? "Generating…" : v && !v.missing ? "Regenerate changed lines" : "Generate voice";
+    const name = kinetic.bp.voice?.name || "Default voice";
+    $("#kvoice").innerHTML = st.status === "voicing" ? `<b>${esc(st.progress)}</b><div class="progress"><div style="width:${st.pct || 0}%"></div></div>`
+      : v ? `<b>${esc(name)}</b> · ${v.lines} lines · ${v.seconds.toFixed(1)}s ${v.missing ? `<span class="pill" style="color:var(--warn)">${v.missing} without voice (timing is estimated)</span>` : `<span class="pill" style="color:var(--ok)">all voiced</span>`}` : esc(name);
+  }
   const log = $("#log");
   if (logLines.length) {
     log.style.display = "block";
@@ -525,7 +679,8 @@ function renderKinetic(st) {
 async function loadPreview() {
   try {
     const p = await api(`/api/jobs/${kinetic.jid}/preview`);
-    kinetic.player.load(p, p.has_music ? `/api/jobs/${kinetic.jid}/music` : null);
+    kinetic.voiceInfo = p.voice || null;
+    kinetic.player.load(p, p.audio_url || (p.has_music ? `/api/jobs/${kinetic.jid}/music` : null));
     const t0 = new URLSearchParams(location.search).get("t");       // ?t=4.2 opens the preview at 4.2s
     if (t0 && !kinetic.seeked) { kinetic.seeked = true; kinetic.player.seek(+t0); }
     const total = p.scenes.reduce((a, s) => a + s.frames, 0) / p.spec.format.fps;
@@ -533,7 +688,7 @@ async function loadPreview() {
   } catch (e) { console.warn(e); }
 }
 
-function drawLook() {
+function drawLook(save = saveSpec) {
   const s = kinetic.bp.style;
   $("#klook").innerHTML = `
     <div><label>Background</label><input type="color" data-k="background" value="${s.background}"></div>
@@ -544,9 +699,69 @@ function drawLook() {
     <div><label>Motion</label><select data-k="motion"><option value="smooth" ${s.motion === "smooth" ? "selected" : ""}>Smooth</option><option value="stepped" ${s.motion === "stepped" ? "selected" : ""}>Stop-motion (on ${s.step_frames}s)</option></select></div>`;
   $("#klook").querySelectorAll("[data-k]").forEach(inp => inp.oninput = () => {
     kinetic.bp.style[inp.dataset.k] = inp.value;
+    const scenes = (kinetic.bp.scenes || []).concat((kinetic.bp.timeline || []).filter(t => t.type === "card"), kinetic.bp.overlays || []);
     if (inp.dataset.k === "font" || inp.dataset.k === "weight")   // apply to elements still on the old default
-      kinetic.bp.scenes.forEach(sc => sc.elements.forEach(el => { delete el[inp.dataset.k]; }));
-    saveSpec();
+      scenes.forEach(sc => (sc.elements || []).forEach(el => { delete el[inp.dataset.k]; }));
+    save();
+  });
+}
+
+const MOODS = ["idle", "thinking", "talking", "happy", "focused", "confused", "searching"];
+const MAGE_IN = ["pop", "peek", "rise", "drop", "fade", "grow", "slide_left", "slide_right", "cut"];
+const MAGE_OUT = ["", "pop_out", "sink", "fade", "shrink", "drop", "slide_left", "slide_right", "cut"];
+
+// Start / end time of an element: seconds, or (mascot videos) the spoken word it lands on.
+function timeInput(el, side) {
+  const d = el[side], off = side === "out" && !d;
+  if (d && d.word != null) return `<input type="number" data-e="${side}.word" value="${d.word}" step="1" min="0" title="On spoken word # (0 = first word of the line)" style="border-color:#0077B6">`;
+  return `<input type="number" data-e="${side}.at" value="${d?.at ?? (side === "in" ? 0 : "")}" step="0.05" min="0" ${off ? "disabled" : ""}>`;
+}
+
+// Element rows of one scene (kinetic scene, story card or overlay): text lines and Mage.
+function elementRows(sc) {
+  return `<div class="el-head"><span>Text / character</span><span>Size</span><span>In</span><span>At</span><span>Out</span><span>Out at</span><span>Color</span></div>
+    ${sc.elements.map((el, j) => el.kind === "mage" ? `
+      <div class="el-row" data-j="${j}">
+        <div class="row" style="gap:6px"><span class="pill" style="background:#0077B6;color:#fff">Mage</span>
+          <select data-e="mood" title="Starting mood">${MOODS.map(m => `<option ${m === (el.mood || "idle") ? "selected" : ""}>${m}</option>`).join("")}</select>
+          <button class="ghost small" data-rm title="Remove">✕</button></div>
+        <input type="number" data-e="size" value="${el.size ?? 0.3}" step="0.01" min="0.02" title="Head diameter (fraction of frame height)">
+        <select data-e="in.type">${opt(MAGE_IN, el.in?.type || "pop")}</select>
+        ${timeInput(el, "in")}
+        <select data-e="out.type">${opt(MAGE_OUT, el.out?.type)}</select>
+        ${timeInput(el, "out")}
+        <select data-e="variant">${["primary", "reversed"].map(v => `<option ${v === (el.variant || "primary") ? "selected" : ""}>${v}</option>`).join("")}</select>
+      </div>
+      <div class="clip-say" style="margin:2px 0 0 4px">${(el.beats || []).map(b => `${(+b.at).toFixed(1)}s ${esc(b.mood || b.do)}`).join(" · ") || "no beats"}${(el.moves || []).length ? ` · ${el.moves.length} move${el.moves.length > 1 ? "s" : ""}` : ""}</div>` : `
+      <div class="el-row" data-j="${j}">
+        <textarea data-e="text" style="height:${16 + 21 * Math.max(1, String(el.text).split("\n").length)}px">${esc(el.text)}</textarea>
+        <input type="number" data-e="size" value="${el.size}" step="0.005" min="0.01">
+        <select data-e="in.type">${opt(IN_TYPES, el.in?.type)}</select>
+        ${timeInput(el, "in")}
+        <select data-e="out.type">${opt(OUT_TYPES, el.out?.type)}</select>
+        ${timeInput(el, "out")}
+        <select data-e="color">${["color","accent"].concat(/^#/.test(el.color || "") ? [el.color] : []).map(c => `<option ${c === (el.color || "color") ? "selected" : ""}>${c}</option>`).join("")}</select>
+      </div>`).join("")}
+    <div class="actions" style="margin-top:6px"><button class="ghost small" data-add="text">+ Text</button><button class="ghost small" data-add="mage">+ Mage</button></div>`;
+}
+
+function bindElementRows(box, sc, redraw, save) {
+  box.querySelectorAll(".el-row").forEach(row => {
+    const el = sc.elements[+row.dataset.j];
+    row.querySelectorAll("[data-e]").forEach(inp => inp.oninput = () => {
+      const [a, b] = inp.dataset.e.split("."), val = inp.type === "number" ? (inp.value === "" ? undefined : +inp.value) : inp.value;
+      if (a === "out" && b === "type") { el.out = val ? {...(el.out || {}), type: val} : null; if (el.out) delete el.out.at; redraw(); }
+      else if (b) { el[a] = el[a] || {}; el[a][b] = val; }
+      else el[a] = val;
+      save();
+    });
+    row.querySelector("[data-rm]")?.addEventListener("click", () => { sc.elements.splice(+row.dataset.j, 1); redraw(); save(); });
+  });
+  box.querySelectorAll("[data-add]").forEach(b => b.onclick = () => {
+    sc.elements.push(b.dataset.add === "mage"
+      ? {kind: "mage", x: .5, y: .5, size: .3, mood: "idle", in: {type: "pop", at: 0, dur: .45}, beats: [{at: .6, do: "hop"}]}
+      : {text: "New line", x: .5, y: .5, size: .06, in: {type: "blur_in", at: 0, dur: .6}});
+    redraw(); save();
   });
 }
 
@@ -556,21 +771,16 @@ function drawScenes() {
     <div class="scene" data-i="${i}">
       <div class="scene-head"><span class="pill">${i + 1}</span>
         <input type="text" data-f="name" value="${esc(sc.name)}" style="flex:1">
-        <input type="number" data-f="dur" value="${sc.dur}" step="0.05" min="0.2" style="width:80px" title="Duration (s)">
+        ${kinetic.voiced && sc.say ? `<span class="pill" title="A spoken scene lasts as long as its line">voiced</span>`
+          : `<input type="number" data-f="dur" value="${sc.dur ?? 1.2}" step="0.05" min="0.2" style="width:80px" title="Duration (s)">`}
         <button class="ghost small" data-act="up" title="Move up">↑</button>
         <button class="ghost small" data-act="dup" title="Duplicate">⧉</button>
         <button class="ghost small" data-act="del" title="Delete">✕</button></div>
-      <div class="el-head"><span>Text</span><span>Size</span><span>In</span><span>At</span><span>Out</span><span>Out at</span><span>Color</span></div>
-      ${sc.elements.map((el, j) => `
-        <div class="el-row" data-j="${j}">
-          <textarea data-e="text" style="height:${16 + 21 * Math.max(1, el.text.split("\n").length)}px">${esc(el.text)}</textarea>
-          <input type="number" data-e="size" value="${el.size}" step="0.005" min="0.01">
-          <select data-e="in.type">${opt(IN_TYPES, el.in?.type)}</select>
-          <input type="number" data-e="in.at" value="${el.in?.at ?? 0}" step="0.05" min="0">
-          <select data-e="out.type">${opt(OUT_TYPES, el.out?.type)}</select>
-          <input type="number" data-e="out.at" value="${el.out?.at ?? ""}" step="0.05" min="0" ${el.out ? "" : "disabled"}>
-          <select data-e="color">${["color","accent"].concat(/^#/.test(el.color || "") ? [el.color] : []).map(c => `<option ${c === (el.color || "color") ? "selected" : ""}>${c}</option>`).join("")}</select>
-        </div>`).join("")}
+      ${kinetic.voiced ? `<div class="say-row"><span class="pill" style="margin-top:8px">says</span>
+        <textarea data-f="say" placeholder="What the voice says in this scene (leave empty for a silent beat)">${esc(sc.say || "")}</textarea>
+        <select data-f="lang" title="Language of this line"><option value="en" ${sc.lang !== "sw" ? "selected" : ""}>EN</option><option value="sw" ${sc.lang === "sw" ? "selected" : ""}>SW</option></select>
+        <input type="number" data-f="pause" value="${sc.pause ?? 0.4}" step="0.05" min="0" title="Pause after the line (s)"></div>` : ""}
+      ${elementRows(sc)}
     </div>`).join("");
   $("#kscenes").querySelectorAll(".scene").forEach(box => {
     const sc = bp.scenes[+box.dataset.i];
@@ -582,16 +792,7 @@ function drawScenes() {
       if (b.dataset.act === "up" && i > 0) [bp.scenes[i - 1], bp.scenes[i]] = [bp.scenes[i], bp.scenes[i - 1]];
       drawScenes(); saveSpec();
     });
-    box.querySelectorAll(".el-row").forEach(row => {
-      const el = sc.elements[+row.dataset.j];
-      row.querySelectorAll("[data-e]").forEach(inp => inp.oninput = () => {
-        const [a, b] = inp.dataset.e.split("."), val = inp.type === "number" ? (inp.value === "" ? undefined : +inp.value) : inp.value;
-        if (a === "out" && b === "type") { el.out = val ? {...(el.out || {}), type: val} : null; if (el.out) delete el.out.at; drawScenes(); }
-        else if (b) { el[a] = el[a] || {}; el[a][b] = val; }
-        else el[a] = val;
-        saveSpec();
-      });
-    });
+    bindElementRows(box, sc, drawScenes, saveSpec);
   });
 }
 
@@ -603,6 +804,293 @@ function saveSpec() {
     const st = await api(`/api/jobs/${kinetic.jid}`);
     kinetic.bp = st.blueprint; kinetic.bpJson = JSON.stringify(st.blueprint); kinetic.dirty = false;
     loadPreview();
+  }, 350);
+}
+
+// ---- talking-video mode (story) ----
+function setStyle(st) {
+  storyStyle = st;
+  document.querySelectorAll("#styleTabs button").forEach(x => x.classList.toggle("on", x.dataset.style === st));
+  $("#styleHint").textContent = st === "youtube"
+    ? "Long-form, 16:9: a cold open, your B-roll cut over your voice, text cards, chapters, quiet subtitles and a music bed. Put B-roll clips on the timeline too."
+    : "Vertical or square, 30–90 s: hook first, tight cuts, punch-ins, callouts and big captions.";
+  if (st === "youtube" && $("#sTarget").value === "") $("#sAspect").value = "match";
+  try { localStorage.setItem("refcut.style", st); } catch {}
+}
+document.querySelectorAll("#styleTabs button").forEach(b => b.onclick = () => setStyle(b.dataset.style));
+try { setStyle(localStorage.getItem("refcut.style") || "short"); } catch { setStyle("short"); }
+document.querySelectorAll("#srcTabs button").forEach(b => b.onclick = () => {
+  storySrc = b.dataset.src;
+  document.querySelectorAll("#srcTabs button").forEach(x => x.classList.toggle("on", x === b));
+  $("#srcResolve").hidden = storySrc !== "resolve"; $("#srcFiles").hidden = storySrc !== "files";
+  if (storySrc === "resolve") readTimeline();
+});
+async function readTimeline() {
+  const card = document.querySelector("#tlCard"); if (!card) return;
+  card.innerHTML = `<small>Reading the open timeline…</small>`;
+  try {
+    const t = await api("/api/resolve/timeline");
+    card.innerHTML = t.ok
+      ? `<b>${esc(t.timeline)}</b> <span class="pill">${esc(t.project)}</span>
+         <small>${t.clips} clip${t.clips === 1 ? "" : "s"} · ${(t.seconds / 60).toFixed(1)} min of footage · ${t.width}×${t.height} @ ${t.fps}</small>
+         <small>${esc(t.names.join(", "))}</small> <a href="#" id="tlRead">Re-read</a>`
+      : `${esc(t.error)} <a href="#" id="tlRead">Try again</a>`;
+  } catch (e) { card.innerHTML = `${esc(e.message)} <a href="#" id="tlRead">Try again</a>`; }
+  document.querySelector("#tlRead").onclick = e => { e.preventDefault(); readTimeline(); };
+}
+document.querySelector("#tlRead").onclick = e => { e.preventDefault(); readTimeline(); };
+try { $("#useMage").checked = localStorage.getItem("refcut.mage") === "1"; $("#sSpoken").value = localStorage.getItem("refcut.spoken") || "auto"; } catch {}
+{ // Mage icon on the toggle: the idle pose
+  const c = $("#mageIcon"), g = c.getContext("2d");
+  drawMage(g, [0.5, 0.5, 1, 0, 1, 0, 0, 1, 0, 0, 44, 44, 0], c.width, c.height);
+}
+
+const story = { jid: null, bp: null, player: null, saveTimer: null, payload: null };
+
+function renderStory(st) {
+  const v = $("#view");
+  const bpJson = JSON.stringify(st.blueprint);
+  const fresh = story.jid !== st.id || !$("#sroot");
+  story.sources = st.talk?.sources || {};
+  if (fresh || (bpJson !== story.bpJson && !story.dirty)) {
+    if (fresh) {
+      story.player?.destroy();
+      const rt = st.resolve_timeline;
+      v.innerHTML = `<div id="sroot">
+        <div id="kerr"></div>
+        <div class="card"><div class="title" id="ktitle"></div><div class="intent" id="kintent"></div>
+          ${rt ? `<small class="hint">From “${esc(rt.timeline)}” in ${esc(rt.project)}</small>` : ""}</div>
+        <div id="kquestions"></div>
+        <div class="card"><h3>Preview <span class="opt" style="float:right" id="ktotal"></span></h3><div id="splayer"></div>
+          <small class="hint">Your footage from 540p proxies, with the same cuts, cards, overlays, Mage and captions Resolve gets. Fonts render slightly differently in the browser.</small></div>
+        <div class="card"><h3>Timeline</h3><div id="sitems"></div>
+          <div class="actions" style="margin-top:8px"><button class="ghost small" id="addCard">+ Card</button></div>
+          <div class="subhead">Overlays (on top of a clip)</div><div id="sovers"></div>
+          <div id="scutsWrap"><div class="subhead">Cutaways (your B-roll over the voice)</div><div id="scuts"></div></div></div>
+        <div class="card" id="chapCard" hidden><h3>YouTube chapters <span class="opt" style="float:right">click to select, paste into the description</span></h3><div class="chapters" id="chapText"></div></div>
+        <div class="card"><h3>Captions &amp; look</h3>
+          <div class="grid3"><div><label>Captions</label><select id="sCapMode"><option value="burned">Burned in (Text+)</option><option value="srt">Subtitle track (.srt)</option><option value="off">Off</option></select></div>
+          <div><label>Caption height</label><input type="number" id="sCapY" step="0.01" min="0.05" max="0.95"></div>
+          <div><label>Words per caption</label><input type="number" id="sCapN" step="1" min="1" max="8"></div></div>
+          <div class="grid3" id="klook" style="margin-top:8px"></div>
+          <div class="actions" style="margin-top:10px"><a class="btnlink" id="dlSrt" href="#">Download .srt</a></div></div>
+        <div class="card"><h3>Motion B-roll <span class="pill" style="float:right">motion-broll skill</span></h3>
+          <div id="brList"></div>
+          <div class="row" style="margin-top:10px">
+            <select id="brDensity" style="width:130px"><option value="light">Light</option><option value="medium" selected>Medium</option><option value="heavy">Heavy</option></select>
+            <input type="text" id="brNotes" placeholder="Optional: what to show or avoid, real numbers to use, brand colours">
+            <button class="ghost" id="brBtn">Add motion B-roll</button></div>
+          <small class="hint" id="brHint"></small></div>
+        <div id="knotes"></div>
+        <div class="card"><h3>Adjust</h3><div class="chat" id="kchat"></div>
+          <div class="row"><input type="text" id="refine" placeholder="e.g. tighter, open on the demo, add a card before the bug fix, Mage confused at the bug">
+          <button class="ghost" id="refineBtn">Update</button></div></div>
+        <div class="card"><h3>Build in DaVinci Resolve</h3>
+          <div class="row"><input type="text" id="proj" placeholder="New timeline name">
+          <button id="buildBtn">Build it</button></div>
+          <small class="hint">Builds a new timeline in the project that's open in Resolve (your original timeline is untouched). V1 cuts and cards, then motion B-roll (if any), callouts, Mage and captions on the tracks above.</small>
+          <div class="log" id="log" style="margin-top:12px;display:none"></div>
+        </div>
+        ${talkCard(st)}
+      </div>`;
+      story.player = new StoryPlayer($("#splayer")); story.brKey = undefined;
+      $("#refineBtn").onclick = doRefine;
+      $("#refine").onkeydown = e => { if (e.key === "Enter") doRefine(); };
+      $("#buildBtn").onclick = doBuild;
+      $("#addCard").onclick = () => {
+        story.bp.timeline.splice(1, 0, {id: "c" + Date.now().toString(36), type: "card", name: "New card", dur: 1.4,
+          elements: [{text: "New card", x: .5, y: .5, size: .09, in: {type: "blur_in", at: 0, dur: .6}, out: {type: "fade", at: 1.1, dur: .3}}]});
+        drawStoryItems(); saveStory();
+      };
+      $("#brBtn").onclick = async () => {
+        try { await api(`/api/jobs/${st.id}/broll`, {method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({density: $("#brDensity").value, notes: $("#brNotes").value})}); }
+        catch (e) { return alert(e.message); }
+        logFrom = 0; logLines = [];
+        clearInterval(poll); poll = setInterval(refresh, 1500); refresh();
+      };
+      $("#sCapMode").value = st.captions || "burned";
+      $("#sCapMode").onchange = async () => {
+        await api(`/api/jobs/${st.id}/options`, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({captions: $("#sCapMode").value})});
+        loadStoryPreview();
+      };
+      document.querySelectorAll(".sheets img").forEach(im => im.onclick = () => { $("#lightbox img").src = im.src; $("#lightbox").style.display = "grid"; });
+    }
+    story.jid = st.id; story.bpJson = bpJson; story.bp = JSON.parse(bpJson);
+    kinetic.bp = story.bp;                    // the Look panel edits bp.style through kinetic's drawLook
+    const bp = story.bp;
+    bp.captions = bp.captions || {};
+    $("#ktitle").textContent = bp.title || "Untitled";
+    $("#kintent").textContent = bp.intent || "";
+    $("#proj").placeholder = `New timeline name (default: ${bp.title || "RefCut edit"})`;
+    $("#dlSrt").href = `/api/jobs/${st.id}/captions.srt`;
+    $("#kquestions").innerHTML = bp.questions?.length ? `<div class="card" style="border-color:var(--warn)"><h3>Claude wants to know</h3><ul class="list">${bp.questions.map(q => `<li>${esc(q)}</li>`).join("")}</ul><small class="hint">Answer in "Adjust".</small></div>` : "";
+    $("#knotes").innerHTML = list("Notes", bp.notes);
+    $("#sCapY").value = bp.captions.y ?? 0.8; $("#sCapN").value = bp.captions.max_words ?? 3;
+    $("#sCapY").oninput = () => { bp.captions.y = +$("#sCapY").value; saveStory(); };
+    $("#sCapN").oninput = () => { bp.captions.max_words = +$("#sCapN").value; saveStory(); };
+    drawLook(saveStory); drawStoryItems(); loadStoryPreview();
+  }
+  $("#kerr").innerHTML = st.error ? `<div class="err-box">${esc(st.error)}</div>` : "";
+  $("#kchat").innerHTML = (st.chat || []).map(m => `<div class="msg ${m.role}">${esc(m.text)}</div>`).join("");
+  const busy = ["building", "refining", "broll"].includes(st.status);
+  $("#refine").disabled = $("#refineBtn").disabled = busy;
+  $("#refineBtn").textContent = st.status === "refining" ? "Revising…" : "Update";
+  $("#buildBtn").disabled = busy;
+  $("#buildBtn").textContent = st.status === "building" ? "Building…" : st.status === "built" ? "Rebuild" : "Build it";
+  // motion B-roll
+  const br = st.broll || [], brKey = JSON.stringify(br.map(c => c.id + c.anchor + c.at));
+  if (brKey !== story.brKey) {
+    const hadKey = story.brKey !== undefined;
+    story.brKey = brKey;
+    $("#brList").innerHTML = br.map(c => `<div class="br-row"><span class="pill">${c.kind === "panel" ? "panel" : "cutaway"}</span>
+      <div><b>${esc(c.title)}</b> · ${(+c.dur).toFixed(1)}s<small>${esc(c.line)}</small></div>
+      <button class="ghost small" data-br="${esc(c.id)}" title="Remove">✕</button></div>`).join("");
+    $("#brList").querySelectorAll("[data-br]").forEach(b => b.onclick = async () => {
+      await api(`/api/jobs/${st.id}/broll/${encodeURIComponent(b.dataset.br)}`, {method: "DELETE"}); refresh();
+    });
+    if (hadKey) loadStoryPreview();
+  }
+  $("#brBtn").disabled = busy;
+  $("#brBtn").textContent = st.status === "broll" ? "Making B-roll…" : br.length ? "Redo B-roll" : "Add motion B-roll";
+  const rt = lastStatus?.broll_runtime;
+  $("#brHint").textContent = st.status === "broll" ? "Claude is designing, checking and rendering each clip. This takes several minutes; progress is in the log below."
+    : rt?.state === "no_node" ? rt.detail
+    : `Claude designs animated cutaways and panels timed to your words, then renders them (several minutes). ${rt?.state === "not_installed" ? rt.detail + " " : ""}Made for the current cut — redo it if you change the edit a lot.`;
+  const log = $("#log");
+  if (logLines.length) {
+    log.style.display = "block";
+    log.innerHTML = logLines.map(l => `<div class="${l.kind}">${l.kind === "tool" ? "→ " : l.kind === "err" ? "✗ " : l.kind === "done" ? "✓ " : ""}${esc(l.text)}</div>`).join("");
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+function talkCard(st) {
+  const t = st.talk; if (!t) return "";
+  const srcs = Object.values(t.sources);
+  return `<div class="card"><h3>Your footage</h3>
+    <table><tr><th>Source</th><th>Used range</th><th>Speech</th></tr>
+    ${srcs.map(s => `<tr><td><b>${esc(s.id)}</b> ${esc(s.name)}<br><small class="mono" style="color:var(--muted)">${s.width}×${s.height} @ ${s.fps}</small></td>
+      <td class="mono">${fmt(s.range[0])} – ${fmt(s.range[1])}</td>
+      <td>${s.phrases ? `${s.words.length} words · ${s.language || ""}` : `<span class="pill">${s.transcribe_error ? "transcription failed" : "no speech"}</span>`}</td></tr>`).join("")}
+    </table>
+    <div class="sheets" style="margin-top:12px">${(t.contact_sheets || []).map(x => `<img src="${file(x)}">`).join("")}</div></div>`;
+}
+
+// what's said in a clip range, from the transcript
+function spoken(sid, a, b) {
+  const w = story.sources[sid]?.words || [];
+  const txt = w.filter(x => x[0] >= a - 0.05 && x[1] <= b + 0.1).map(x => x[2]).join(" ");
+  return txt.length > 160 ? txt.slice(0, 157) + "…" : txt;
+}
+
+function drawCutaways() {
+  const bp = story.bp, srcIds = Object.keys(story.sources), cuts = bp.cutaways || [];
+  $("#scutsWrap").hidden = !cuts.length;
+  $("#scuts").innerHTML = cuts.map((c, k) => `
+    <div class="scene" data-k="${k}"><div class="clip-row" style="grid-template-columns:1.2fr 110px 64px 64px 72px 72px 96px auto">
+      <input type="text" data-c="name" value="${esc(c.name || "")}">
+      <select data-c="anchor" title="Starts on timeline item">${bp.timeline.map((it, i) => `<option value="${esc(it.id)}" ${it.id === c.anchor ? "selected" : ""}>${i + 1}. ${esc(it.name).slice(0, 18)}</option>`).join("")}</select>
+      <input type="number" data-c="at" value="${c.at ?? 0}" step="0.05" min="0" title="Starts (s after the item starts)">
+      <select data-c="source" title="B-roll source">${srcIds.map(x => `<option ${x === c.source ? "selected" : ""}>${x}</option>`).join("")}</select>
+      <input type="number" data-c="in" value="${c.in}" step="0.05" title="In (s in the source)">
+      <input type="number" data-c="out" value="${c.out}" step="0.05" title="Out (s in the source)">
+      <select data-c="inset" title="Full screen, or a framed picture on a canvas"><option value="">full screen</option><option value="1" ${c.inset ? "selected" : ""}>inset frame</option></select>
+      <button class="ghost small" data-act="del" title="Delete">✕</button></div></div>`).join("");
+  $("#scuts").querySelectorAll(".scene").forEach(box => {
+    const c = cuts[+box.dataset.k];
+    box.querySelectorAll("[data-c]").forEach(inp => inp.oninput = () => {
+      const k = inp.dataset.c;
+      if (k === "inset") c.inset = inp.value ? (c.inset || {scale: 0.62, canvas: "#F4F3EF", y: 0.47}) : null;
+      else c[k] = inp.type === "number" ? +inp.value : inp.value;
+      saveStory();
+    });
+    box.querySelector("[data-act=del]").onclick = () => { cuts.splice(+box.dataset.k, 1); drawCutaways(); saveStory(); };
+  });
+}
+
+function drawStoryItems() {
+  const bp = story.bp, srcIds = Object.keys(story.sources);
+  drawCutaways();
+  $("#sitems").innerHTML = bp.timeline.map((it, i) => it.type === "card" ? `
+    <div class="scene" data-i="${i}">
+      <div class="scene-head"><span class="pill">${i + 1} · card</span>
+        <input type="text" data-f="name" value="${esc(it.name)}" style="flex:1">
+        <input type="number" data-f="dur" value="${it.dur}" step="0.05" min="0.2" style="width:80px" title="Duration (s)">
+        <button class="ghost small" data-act="up" title="Move up">↑</button>
+        <button class="ghost small" data-act="dup" title="Duplicate">⧉</button>
+        <button class="ghost small" data-act="del" title="Delete">✕</button></div>
+      ${elementRows(it)}
+    </div>` : `
+    <div class="scene" data-i="${i}">
+      <div class="clip-row">
+        <span class="pill">${i + 1}</span>
+        <input type="text" data-f="name" value="${esc(it.name)}" title="Name">
+        <select data-f="source" title="Source">${srcIds.map(k => `<option ${k === it.source ? "selected" : ""}>${k}</option>`).join("")}</select>
+        <input type="number" data-f="in" value="${it.in}" step="0.05" title="In (s in the source)">
+        <input type="number" data-f="out" value="${it.out}" step="0.05" title="Out (s in the source)">
+        <input type="number" data-f="zoom" value="${it.zoom ?? 1}" step="0.01" min="1" max="2" title="Zoom (punch-in)">
+        <span class="row" style="gap:4px"><button class="ghost small" data-act="up" title="Move up">↑</button>
+          <button class="ghost small" data-act="dup" title="Split / duplicate">⧉</button>
+          <button class="ghost small" data-act="del" title="Delete">✕</button></span>
+        <div class="clip-say">“${esc(spoken(it.source, it.in, it.out))}”${it.why ? ` <span class="pill">${esc(it.why)}</span>` : ""}</div>
+      </div>
+    </div>`).join("");
+  $("#sitems").querySelectorAll(".scene").forEach(box => {
+    const i = +box.dataset.i, it = bp.timeline[i];
+    box.querySelectorAll("[data-f]").forEach(inp => inp.oninput = () => {
+      it[inp.dataset.f] = inp.type === "number" ? +inp.value : inp.value; saveStory();
+    });
+    box.querySelectorAll("[data-act]").forEach(b => b.onclick = () => {
+      if (b.dataset.act === "del") {
+        bp.timeline.splice(i, 1);
+        bp.overlays = (bp.overlays || []).filter(o => o.anchor !== it.id);
+      }
+      if (b.dataset.act === "dup") bp.timeline.splice(i + 1, 0, {...JSON.parse(JSON.stringify(it)), id: it.id + "x" + Date.now().toString(36).slice(-3)});
+      if (b.dataset.act === "up" && i > 0) [bp.timeline[i - 1], bp.timeline[i]] = [bp.timeline[i], bp.timeline[i - 1]];
+      drawStoryItems(); saveStory();
+    });
+    if (it.type === "card") bindElementRows(box, it, () => { drawStoryItems(); }, saveStory);
+  });
+  const ids = bp.timeline.map(it => it.id);
+  $("#sovers").innerHTML = (bp.overlays || []).map((o, k) => `
+    <div class="scene" data-k="${k}">
+      <div class="ov-row">
+        <input type="text" data-o="name" value="${esc(o.name)}">
+        <select data-o="anchor" title="On timeline item">${bp.timeline.map((it, i) => `<option value="${esc(it.id)}" ${it.id === o.anchor ? "selected" : ""}>${i + 1}. ${esc(it.name).slice(0, 22)}</option>`).join("")}</select>
+        <input type="number" data-o="at" value="${o.at ?? 0}" step="0.05" min="0" title="Starts (s after the item starts)">
+        <input type="number" data-o="dur" value="${o.dur ?? 2}" step="0.05" min="0.2" title="Duration (s)">
+        <button class="ghost small" data-act="del" title="Delete">✕</button>
+      </div>
+      ${elementRows(o)}
+    </div>`).join("") || `<small class="hint">No overlays.</small>`;
+  $("#sovers").querySelectorAll(".scene").forEach(box => {
+    const o = bp.overlays[+box.dataset.k];
+    box.querySelectorAll("[data-o]").forEach(inp => inp.oninput = () => { o[inp.dataset.o] = inp.type === "number" ? +inp.value : inp.value; saveStory(); });
+    box.querySelector("[data-act=del]").onclick = () => { bp.overlays.splice(+box.dataset.k, 1); drawStoryItems(); saveStory(); };
+    bindElementRows(box, o, () => drawStoryItems(), saveStory);
+  });
+}
+
+async function loadStoryPreview() {
+  try {
+    const p = await api(`/api/jobs/${story.jid}/preview`);
+    story.player.load(p);
+    $("#chapCard").hidden = !p.chapters_text; $("#chapText").textContent = p.chapters_text || "";
+    const t0 = new URLSearchParams(location.search).get("t");       // ?t=4.2 opens the preview at 4.2s
+    if (t0 && !story.seeked) { story.seeked = true; story.player.seek(+t0 * p.fps); }
+    const f = p.spec.format;
+    $("#ktotal").textContent = `${p.v1.length} items · ${(p.total / p.fps).toFixed(1)}s · ${f.width}×${f.height} @ ${f.fps}`;
+  } catch (e) { console.warn(e); }
+}
+
+function saveStory() {
+  story.dirty = true;
+  clearTimeout(story.saveTimer);
+  story.saveTimer = setTimeout(async () => {
+    await api(`/api/jobs/${story.jid}/blueprint`, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(story.bp)});
+    story.bpJson = JSON.stringify(story.bp); story.dirty = false;
+    loadStoryPreview();
   }, 350);
 }
 
