@@ -74,4 +74,11 @@ if (Have node) {
   Write-Host "Node.js installed - open a NEW terminal and run setup again to finish the motion B-roll renderer (everything else is ready)." -ForegroundColor Yellow
 }
 
+# 9. Voice model for mascot videos (3.3 GB, once). Skip with:  setup.ps1 -NoVoiceModel
+if ($args -notcontains "-NoVoiceModel") {
+  Write-Host "Downloading the voice model for mascot videos (3.3 GB, one time)..." -ForegroundColor Yellow
+  & $vpy -c "from huggingface_hub import snapshot_download; snapshot_download('k2-fsa/OmniVoice'); print('Voice model ready')"
+  if ($LASTEXITCODE -ne 0) { Write-Host "Voice model download failed - RefCut will download it the first time you design a voice." -ForegroundColor Yellow }
+}
+
 Write-Host "`nDone. Run start.bat, then in Resolve: Workspace > Scripts > CursorBridge." -ForegroundColor Green

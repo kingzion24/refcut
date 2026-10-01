@@ -41,14 +41,14 @@ def spoken(spec):
     return [sc for sc in spec.get("scenes") or [] if str(sc.get("say") or "").strip()]
 
 
-def make_voices(spec, job_dir, whisper_model="base", base=voice.DEFAULT_URL, progress=lambda msg, pct: None):
-    """Generate (or reuse) the voice for every spoken scene. Raises RuntimeError if VoiceStudio fails."""
+def make_voices(spec, job_dir, whisper_model="base", cfg=None, progress=lambda msg, pct: None):
+    """Generate (or reuse) the voice for every spoken scene. Raises RuntimeError if the voice engine fails."""
     v, fps = voice_of(spec), int(round(float((spec.get("format") or {}).get("fps", 30))))
     lines = spoken(spec)
     for i, sc in enumerate(lines):
         progress(f"Voicing line {i + 1} of {len(lines)}: “{sc['say'].strip()[:60]}”", int(100 * i / max(len(lines), 1)))
         voice.line(sc["say"].strip(), v["id"], _lang(sc, spec), v["speed"], Path(job_dir) / "voice", fps,
-                   whisper_model, base)
+                   whisper_model, cfg)
     return len(lines)
 
 

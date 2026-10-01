@@ -13,3 +13,6 @@ faster-whisper>=1.2.0
 demucs>=4.0.0
 rembg[cpu]>=2.0.50
 soundfile>=0.12.0
+
+# Built-in voice for mascot videos (k2-fsa/OmniVoice, Apache-2.0). The 3.3 GB model downloads on first use.
+omnivoice>=0.2.1

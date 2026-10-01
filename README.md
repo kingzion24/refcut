@@ -2,7 +2,10 @@
 
 **Show it a reference, add a line of context — RefCut builds it in DaVinci Resolve.**
 
-RefCut is a local web app that connects **Claude** (the brain) to **DaVinci Resolve** (the editor):
+RefCut is a local web app that connects **Claude** (the brain) to **DaVinci Resolve** (the editor).
+It has three **modes**, one per kind of video, chosen at the top of the left panel: **Talking video**
+(shorts and long YouTube stories), **Kinetic text** and **Mascot video**. A fourth tool, *Match a reference
+edit*, sits under the mode bar. What each one does:
 
 - **Kinetic text** — Apple-style, text-only launch videos. Claude writes a motion script, you preview and
   tweak it in the browser, and RefCut builds it as **keyframed Fusion comps** (one per scene) on a Resolve
@@ -13,8 +16,8 @@ RefCut is a local web app that connects **Claude** (the brain) to **DaVinci Reso
   captions. It builds a **new timeline** next to yours.
 - **YouTube story** — the long-form version of a talking video: a cold open, your own B-roll cut over your
   voice, text cards, chapters, quiet subtitles and a music bed. It can mirror a reference video you link.
-- **Mascot video** — faceless explainers. Claude writes the script, [VoiceStudio](https://github.com/debpalash/VoiceStudio)
-  speaks it in a voice you cloned or designed, and Mage hosts on screen with text timed to the spoken words.
+- **Mascot video** — faceless explainers. Claude writes the script, RefCut's built-in voice speaks it in a
+  voice you design once, and Mage hosts on screen with text timed to the spoken words.
 - **English + Kiswahili** — talking videos understand speech that switches between the two.
 - **Mage** — Mali Daftari's mascot as a motion character in any kinetic or talking video. It pops in,
   reacts (happy, confused, thinking…), pushes up its glasses and hosts the intro and outro.
@@ -77,9 +80,9 @@ Everything runs on one machine. Nothing is exposed to the network — both serve
 | OS | Windows 10/11 (64-bit). macOS/Linux work for the web app; setup scripts are Windows-only. |
 | DaVinci Resolve | 18 or newer — **Free or Studio** |
 | Claude | A Claude account (Pro/Max) for Claude Code |
-| Disk | ~3 GB for Python packages (PyTorch CPU, Whisper) + Resolve itself |
+| Disk | ~3 GB for Python packages (PyTorch CPU, Whisper) + 3.3 GB voice model + Resolve itself |
 | Node.js | 18 or newer, only for motion B-roll (setup installs it) |
-| VoiceStudio | Only for mascot videos: the free local voice app from <https://voicestudio.sh>. A GPU with ~6 GB helps a lot |
+| Voice model | Only for mascot videos: 3.3 GB, downloaded by setup. Runs on the CPU, or on an NVIDIA GPU if you install the CUDA build of PyTorch |
 | Internet | Needed for setup and for Claude; editing itself is local |
 
 Setup installs these automatically if missing: **Python 3.12**, **ffmpeg**, **Node.js** (via `winget`).
@@ -134,6 +137,8 @@ Then **double-click `setup.bat`** (or run `powershell -ExecutionPolicy Bypass -F
    `claude` terminal session too).
 5. Installs RefCut's bundled Claude skills into `%USERPROFILE%\.claude\skills\` (see section 12).
 6. Installs Node.js if it's missing and downloads the motion B-roll renderer (~150 MB).
+7. Downloads the voice model for mascot videos (3.3 GB). To skip it:
+   `powershell -ExecutionPolicy Bypass -File setup.ps1 -NoVoiceModel` (it then downloads the first time you design a voice).
 
 Updating from an older RefCut: copy the new folder over the old one, run `setup.bat` again, and in Resolve
 run **Workspace → Scripts → CursorBridge** again so it loads the new bridge.
@@ -183,7 +188,7 @@ Top-right of the page are three status lights. **Claude** and **DaVinci** should
 |---|---|---|---|
 | **Claude** | Installed, logged in, answered a test call. Shows the version. | Error talking to Claude | Not installed / not logged in |
 | **DaVinci** | Bridge connected. Shows your open project name. | Resolve is open but the bridge isn't started | Resolve isn't running |
-| **Voice** | VoiceStudio is open; your voices are in the Mascot video voice list. | VoiceStudio isn't running | – |
+| **Voice** | At least one voice is designed; it shows how many. | No voice yet: click it and design one | The voice engine isn't installed: run setup again |
 
 **Click a light** to see exactly what's wrong and how to fix it, plus a **Re-check** button. The lights refresh
 every few seconds, so after you start CursorBridge the DaVinci light turns green on its own.
@@ -195,7 +200,7 @@ You can plan and preview with only Claude green; DaVinci only needs to be green 
 
 ## 7. Make your first kinetic-text video
 
-1. Pick the **Kinetic text** tab (left panel).
+1. Pick the **Kinetic text** mode (left panel).
 2. **Reference video** *(optional)* — drop a video you like the style of, or paste a TikTok / YouTube /
    Instagram link. RefCut samples frames through it so Claude can see how text enters, holds and exits.
 3. **Context** — a line or two is enough:
@@ -244,7 +249,7 @@ build, compare text size in Resolve with the RefCut preview:
 
 ## 9. Match a ref
 
-1. Pick the **Match a ref** tab.
+1. Under the mode bar, click **Other: match a reference edit**.
 2. Drop a reference edit (or paste a link) and enter your **footage folder** (e.g. `D:\Footage\Trip`).
 3. Add context → **Analyze & plan**. You get the recipe (pacing, cutting, look, text, music), a colour-coded
    timeline with beat ticks, and a shot-by-shot table matching each reference shot to one of your clips.
@@ -263,7 +268,7 @@ For videos where you talk: a dev-journey update, a feature walkthrough, a "here'
 1. **In Resolve**, put your raw footage on a timeline: talking head, screen recordings, or both, in
    roughly the order you recorded them. Trim anything you already know you don't want. RefCut uses
    exactly the part of each clip that's on the timeline.
-2. **In RefCut**, pick the **Talking video** tab. Under *Your footage* keep **My Resolve timeline**; the
+2. **In RefCut**, pick the **Talking video** mode. Under *Your footage* keep **My Resolve timeline**; the
    card shows the timeline RefCut will read (click *Re-read* after changing it). No Resolve? Switch to
    **Files / folder** and paste file paths, one per line, or a folder.
 3. **Context**: describe the rest in a line or two. For example:
@@ -330,6 +335,14 @@ Click the **Claude** status light to see them. To bundle another skill, drop its
 | Skill | From | RefCut uses it for |
 |---|---|---|
 | `motion-broll` | [Barty-Bart/motion-graphics](https://github.com/Barty-Bart/motion-graphics) (MIT) | **Add motion B-roll** in a talking video |
+| `agent-reach` | [Panniantong/Agent-Reach](https://github.com/Panniantong/Agent-Reach) (MIT) | Not used by RefCut's own steps. In Claude Code it is a guide for reading the internet (web pages, YouTube transcripts, GitHub, X, Reddit…), handy when researching a video |
+
+`agent-reach` is a guide, not the tools: plain web pages work straight away, most platforms need the Agent
+Reach tools, which you install by telling Claude Code
+`Install Agent Reach: https://raw.githubusercontent.com/Panniantong/agent-reach/main/docs/install.md`.
+RefCut's setup doesn't run that installer and never handles logins or cookies. Note that the skill tells Claude
+to use it whenever you share a link or ask it to look something up, in any project on this PC. To remove it,
+delete `%USERPROFILE%\.claude\skills\agent-reach` and the `refcut\skills\agent-reach` folder.
 
 **Add motion B-roll** (talking video, under the preview):
 
@@ -382,28 +395,43 @@ screen and inset, or delete them.
 
 For faceless content: no camera, a generated voice, Mage on screen.
 
-**One-time: install VoiceStudio.** RefCut generates speech through [VoiceStudio](https://github.com/debpalash/VoiceStudio),
-a free local app (voice cloning, voice design, 600+ languages including Kiswahili). Install it from
-<https://voicestudio.sh>, open it, let it download its voice model, then clone your voice or design one for
-Mage. While VoiceStudio is open, RefCut's **Voice** light is green and your voices appear in the voice list.
-Its default engine wants a GPU with about 6 GB of memory; on smaller machines pick its lighter (GGUF) variant.
+**The voice is built in.** RefCut runs the [OmniVoice](https://github.com/k2-fsa/OmniVoice) speech model
+(Apache-2.0, 600+ languages including Kiswahili) itself; there is nothing else to install or keep open.
+It runs on your CPU. On a fast CPU a line takes a little while rather than an instant, so generate, then
+review. With an NVIDIA card and the CUDA build of PyTorch it uses the GPU. (AMD cards aren't used on Windows.)
 
-RefCut talks to VoiceStudio's local API (`127.0.0.1:3900`); it doesn't contain VoiceStudio's code, which is
-AGPL-licensed. Clone voices only with permission.
+**One-time: design Mage's voice.** Click the **Voice** light:
 
-1. Pick the **Mascot video** tab.
+1. Name it, pick gender, age, pitch and (optionally) an English accent, and click **Create voice**.
+2. Press ▶ to hear it. Each take is a little different: press ↻ for another take of the same description
+   until it's right. ✕ deletes a voice.
+
+RefCut keeps that sample as the voice, and every line of every video copies it. That is what keeps Mage
+sounding the same from line to line, video to video, and between English and Kiswahili. Remaking a voice
+re-speaks the lines that used it the next time you generate.
+
+**Then, per video:**
+
+1. Pick the **Mascot video** mode.
 2. **Context**: what the video should explain, or paste your full script.
 3. Choose the **Voice**, the **Language** (English, Kiswahili, or a mix where each line is in one language),
    length, format and an optional music bed.
-4. **Analyze & plan.** Claude writes the script and directs the scenes; VoiceStudio speaks each line.
+4. **Analyze & plan.** Claude writes the script and directs the scenes; RefCut speaks each line.
 5. **Review.** Each scene shows the line it *says*. Text and Mage's reactions are timed to spoken words
    (the blue number is the word they land on), so a scene lasts as long as its line. Mage's eyes move with
    the voice. Captions are added automatically and wrap to fit the frame.
 6. Edit any line, then **Generate voice**: only the changed lines are redone.
 7. **Build it.** One Fusion clip per scene, Mage on V2, the voice on A1 and the music bed on A2.
 
-If VoiceStudio isn't open, RefCut still writes the script and scenes with estimated timing; open it and
-click **Generate voice** when ready.
+If no voice exists yet, RefCut still writes the script and scenes with estimated timing; design a voice and
+click **Generate voice**.
+
+Write numbers as words in a line ("ten sales"), since the voice reads exactly what is written. Your voices
+live in `refcut\voices\`; back that folder up to keep them.
+
+*Optional:* RefCut can instead use the [VoiceStudio](https://github.com/debpalash/VoiceStudio) app for
+speech (useful for cloning your own voice): set `"voice_engine": "voicestudio"` in `settings.json` and keep
+VoiceStudio open. RefCut only talks to its local API; it contains none of its AGPL code.
 
 ---
 
@@ -427,18 +455,17 @@ pauses, decides English or Kiswahili for each passage, and transcribes it in tha
 ```
 1. Open DaVinci Resolve → open a project
 2. Workspace → Scripts → CursorBridge
-3. (Mascot videos only) open VoiceStudio
-4. Double-click start.bat          (browser opens localhost:7860)
-5. Claude + DaVinci lights green? → pick a tab → Analyze & plan → Build it
+3. Double-click start.bat          (browser opens localhost:7860)
+4. Claude + DaVinci lights green? → pick a mode → Analyze & plan → Build it
 ```
 
-| You're making | Tab |
+| You're making | Mode |
 |---|---|
 | A talking short (dev log, feature update) | **Talking video** → Short |
 | A long YouTube story with B-roll and chapters | **Talking video** → YouTube story |
 | A text-only launch / ad video | **Kinetic text** |
 | A faceless explainer with Mage and a generated voice | **Mascot video** |
-| A cut that copies a reference edit's rhythm | **Match a ref** |
+| A cut that copies a reference edit's rhythm | *Other: match a reference edit* (under the mode bar) |
 
 To update RefCut later: `git pull` in the folder (or download the ZIP again), then run `setup.bat` again and
 **restart Resolve** so it loads the newest CursorBridge.
@@ -467,9 +494,11 @@ To update RefCut later: `git pull` in the folder (or download the ZIP again), th
 | Motion B-roll: *"Node.js isn't installed"* | Install Node.js LTS from nodejs.org (or re-run `setup.bat`), restart `start.bat`. |
 | Motion B-roll made no clips | Read the log: usually the renderer download failed (re-run `setup.bat`) or Claude dropped a clip that wouldn't render. Click **Redo B-roll**. |
 | Motion B-roll is in the wrong place after re-editing | Clips are pinned to the timeline item they were made for. After big changes, **Redo B-roll**. |
-| **Voice** light amber | VoiceStudio isn't open. Open it; the light turns green in a few seconds. |
-| Mascot video: lines "without voice" | Open VoiceStudio and click **Generate voice**. If a line fails, the error says why (usually the model isn't downloaded yet). |
-| Voice generation is very slow | VoiceStudio is running on CPU. Use a GPU, or its lighter GGUF engine. |
+| **Voice** light amber | No voice yet. Click the light and design one. |
+| **Voice** light red | The voice engine isn't installed. Run `setup.bat` again, then restart `start.bat`. |
+| Mascot video: lines "without voice" | Design a voice if you haven't, then click **Generate voice**. If a line fails, the error above the preview says why. |
+| Voice generation is slow | It runs on the CPU. The first line also loads the 3.3 GB model. Keep lines short; only changed lines are redone. |
+| First voice takes very long | It's downloading the 3.3 GB model (setup normally does this). Leave it running. |
 | Kiswahili lines missing or garbled | Set **You speak** to *English + Kiswahili, mixed* and use the *Best for Kiswahili* model. |
 | Captions have typos | Burned captions are Text+: select the caption clip → Fusion page → edit the text. Or fix the words in **Adjust** and rebuild. |
 
@@ -489,7 +518,8 @@ refcut/
 ├─ story.py        talking videos: edit plan + transcript → word-snapped cuts, cards, overlays, captions
 ├─ mage.py         Mage: per-frame poses (moods, blinks, glasses) → transparent PNG sequences
 ├─ mascot.py       mascot videos: voiced script → scene timing from the voice, captions, voice + music tracks
-├─ voice.py        VoiceStudio client: voices, speech per line (cached), word timings, loudness for Mage
+├─ voice.py        built-in voice (OmniVoice): design a voice once, speech per line (cached), word timings,
+│                  loudness for Mage
 ├─ broll.py        motion B-roll: runs Claude headless on the bundled motion-broll skill, collects the clips
 ├─ skillset.py     installs the bundled skills into this machine's Claude (~/.claude/skills)
 ├─ skills/         bundled skills (motion-broll)
@@ -512,6 +542,9 @@ refcut/
   `UseFrameFormatSettings`) was checked against comps saved by Resolve itself.
 
 ### Credits
+
+The built-in voice is [OmniVoice](https://github.com/k2-fsa/OmniVoice) by k2-fsa (Apache-2.0), installed as the
+`omnivoice` package; its model has its own terms on Hugging Face.
 
 `skills/motion-broll` is from [Barty-Bart/motion-graphics](https://github.com/Barty-Bart/motion-graphics)
 (MIT licence; Geist fonts under the SIL Open Font License), with small fixes for Windows and vertical video

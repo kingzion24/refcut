@@ -96,12 +96,14 @@
   .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--panel2); color: var(--muted); }
   .lightbox { position: fixed; inset: 0; background: #000d; display: none; place-items: center; z-index: 9; cursor: zoom-out; }
   .lightbox img { max-width: 95vw; max-height: 95vh; }
-  .tabs { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
+  .more-mode { display: inline-block; margin-top: 6px; font-size: 12px; color: var(--muted); text-decoration: none; }
+  .more-mode:hover, .more-mode.on { color: var(--accent); }
+  .tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; }
   .tabs button { background: transparent; color: var(--muted); font-weight: 500; padding: 8px; border-radius: 7px; }
   .tabs button.on { background: var(--panel2); color: var(--text); }
   body:not(.mode-kinetic) .only-kinetic, body:not(.mode-footage) .only-footage, body:not(.mode-story) .only-story,
   body.mode-footage .only-creative, body.mode-story .not-story { display: none !important; }
-  .tabs button { font-size: 12px; padding: 8px 2px; white-space: nowrap; }
+  .tabs button { font-size: 13px; padding: 8px 4px; white-space: nowrap; }
   body:not(.mode-kinetic):not(.mode-mascot):not(.mode-story) .only-km.also-story,
   body:not(.mode-kinetic):not(.mode-mascot) .only-km:not(.also-story), body:not(.mode-mascot) .only-mascot:not(.only-story-inline),
   body:not(.mode-mascot):not(.mode-story) .only-story-inline,
@@ -186,11 +188,15 @@
 </header>
 <main>
   <aside>
-    <div class="tabs" id="modeTabs">
-      <button data-mode="kinetic" class="on">Kinetic text</button>
-      <button data-mode="story">Talking video</button>
-      <button data-mode="mascot">Mascot video</button>
-      <button data-mode="footage">Match a ref</button>
+    <div>
+      <label>Mode</label>
+      <div class="tabs" id="modeTabs">
+        <button data-mode="story" class="on">Talking video</button>
+        <button data-mode="kinetic">Kinetic text</button>
+        <button data-mode="mascot">Mascot video</button>
+      </div>
+      <small class="hint" id="modeHint"></small>
+      <a href="#" id="refMode" class="more-mode">Other: match a reference edit</a>
     </div>
     <div class="only-story">
       <label>Kind of video</label>
@@ -263,9 +269,9 @@
     <div class="jobs"><label>Recent</label><div id="jobs"></div></div>
   </aside>
   <section class="view" id="view">
-    <div class="empty"><div><h2>Show it, don't explain it.</h2>
-      Drop a reference, add a line of context — or lay your footage out in Resolve.<br>
-      RefCut writes the edit and builds it in DaVinci Resolve: kinetic type in Fusion, your cuts, captions and Mage.</div></div>
+    <div class="empty"><div><h2>Pick a mode, describe the video.</h2>
+      <b>Talking video</b> · <b>Kinetic text</b> · <b>Mascot video</b><br>
+      Claude plans it, you preview and adjust it here, and RefCut builds it in DaVinci Resolve.</div></div>
   </section>
 </main>
 <div class="lightbox" id="lightbox"><img></div>
@@ -303,7 +309,10 @@ async function health() {
     setPill("#pillClaude", c[0], c[0] === "ok" && s.claude.version ? `Connected · v${s.claude.version}` : c[1], s.claude.detail);
     setPill("#pillResolve", r[0], s.resolve.state === "connected" ? (s.resolve.project || "Connected") : r[1], s.resolve.detail);
     const vo = s.voice || {state: "off", voices: []};
-    setPill("#pillVoice", vo.state === "connected" ? "ok" : "warn", vo.state === "connected" ? "VoiceStudio" : "not running", vo.detail);
+    const making = vo.task?.state === "working";
+    setPill("#pillVoice", making ? "wait" : vo.state === "connected" ? "ok" : vo.state === "not_installed" ? "bad" : "warn",
+      making ? "making a voice…" : vo.state === "connected" ? (vo.engine === "voicestudio" ? "VoiceStudio" : `${vo.voices.length} voice${vo.voices.length === 1 ? "" : "s"}`)
+        : vo.state === "no_voice" ? "design a voice" : vo.state === "not_installed" ? "not installed" : "not running", vo.detail);
     const vKey = JSON.stringify(vo.voices.map(v => v.id));
     if (vKey !== health.vKey) {                 // refill the voice list when VoiceStudio's voices change
       health.vKey = vKey;
@@ -312,7 +321,9 @@ async function health() {
         `<option value="${esc(v.id)}">${esc(v.name)}${v.yours ? "" : " (built-in)"}</option>`).join("");
       if ([...$("#mVoice").options].some(o => o.value === keep)) $("#mVoice").value = keep;
     }
-    $("#mVoiceHint").textContent = vo.state === "connected" ? "" : "VoiceStudio isn't open, so the script will be written without a voice. Open it and click “Generate voice” later.";
+    $("#mVoiceHint").textContent = vo.state === "connected" ? ""
+      : vo.state === "no_voice" ? "No voice yet: click the Voice light (top right) and design one for Mage. You can still plan the video first."
+      : vo.detail + " The script will be written without a voice; generate it later.";
     if (popFor) showPop(popFor);
     document.querySelectorAll("#buildBtn").forEach(b => b.title = s.resolve.state === "connected" ? "" : s.resolve.detail);
   } catch {
@@ -327,6 +338,7 @@ function setPill(sel, cls, text, title) {
 function showPop(which) {
   const s = lastStatus, pop = $("#statusPop"); if (!s) return;
   popFor = which; pop.hidden = false;
+  if (which !== "voice") delete pop.dataset.voiceKey;
   if (which === "claude") {
     const c = s.claude, cls = (STATUS.claude[c.state] || ["warn"])[0];
     const fix = {
@@ -341,15 +353,43 @@ function showPop(which) {
       <div class="actions"><button class="ghost small" id="recheckClaude">Re-check</button><button class="ghost small" id="closePop">Close</button></div>`;
     $("#recheckClaude").onclick = async () => { await api("/api/status/claude", {method: "POST"}); setTimeout(health, 300); };
   } else if (which === "voice") {
-    const vo = s.voice || {state: "off", voices: []}, ok = vo.state === "connected";
-    pop.innerHTML = `<h4><i class="dot ${ok ? "ok" : "warn"}"></i>Voice (VoiceStudio)</h4><p>${esc(vo.detail)}</p>
-      ${ok ? `<p>Clone or design a voice in VoiceStudio and it appears in the Mascot video voice list.</p>` : `<ol>
-        <li>Install <b>VoiceStudio</b> from voicestudio.sh (free, runs on this PC)</li>
-        <li>Open it and let it download its voice model</li>
-        <li>Clone your voice or design one for Mage</li>
-        <li>Keep it open while RefCut generates voices; this light turns green</li></ol>`}
-      <div class="actions"><button class="ghost small" id="recheckResolve">Re-check</button><button class="ghost small" id="closePop">Close</button></div>`;
-    $("#recheckResolve").onclick = health;
+    const vo = s.voice || {state: "off", voices: []}, ok = vo.state === "connected", t = vo.task || {};
+    const key = JSON.stringify([vo.state, vo.engine, vo.voices.map(v => v.id + v.made), t.state, t.msg]);
+    if (pop.dataset.voiceKey === key) return;          // don't rebuild the form while it's being filled in
+    pop.dataset.voiceKey = key;
+    if (vo.engine === "voicestudio") {
+      pop.innerHTML = `<h4><i class="dot ${ok ? "ok" : "warn"}"></i>Voice (VoiceStudio)</h4><p>${esc(vo.detail)}</p>
+        <p>RefCut is set to use the VoiceStudio app. Voices you make there appear in the Mascot video voice list.</p>
+        <div class="actions"><button class="ghost small" id="useBuiltin">Use RefCut's built-in voice instead</button><button class="ghost small" id="closePop">Close</button></div>`;
+      $("#useBuiltin").onclick = async () => { await api("/api/settings", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({voice_engine: "builtin"})}); health(); };
+    } else {
+      const A = vo.attributes || {}, sel = (k, def) => `<select data-va="${k}">${(A[k] || []).map(x => `<option value="${esc(x)}" ${x === def ? "selected" : ""}>${esc(x || "no accent set")}</option>`).join("")}</select>`;
+      const busy = t.state === "working";
+      pop.innerHTML = `<h4><i class="dot ${busy ? "wait" : ok ? "ok" : vo.state === "not_installed" ? "bad" : "warn"}"></i>Voice</h4>
+        <p>${esc(vo.detail)}${vo.state !== "not_installed" && !vo.model_ready ? " The first voice downloads the voice model (3.3 GB)." : ""}</p>
+        ${vo.voices.map(v => `<div class="br-row" style="grid-template-columns:auto 1fr auto auto"><button class="ghost small" data-play="${esc(v.id)}" data-made="${v.made}" title="Listen">▶</button>
+          <div><b>${esc(v.name)}</b><small>${esc(v.instruct)}</small></div>
+          <button class="ghost small" data-redo="${esc(v.id)}" title="Same description, new take" ${busy ? "disabled" : ""}>↻</button>
+          <button class="ghost small" data-del="${esc(v.id)}" title="Delete" ${busy ? "disabled" : ""}>✕</button></div>`).join("")}
+        ${busy ? `<p style="color:var(--text)"><b>${esc(t.msg)}</b><br><small>On a CPU this takes a minute or two.</small></p>` : ""}
+        ${t.state === "error" ? `<div class="err-box">${esc(t.msg)}</div>` : ""}
+        ${vo.state === "not_installed" ? `<ol><li>Run <code>setup.bat</code> again: it installs the voice engine</li><li>Restart RefCut</li></ol>` : `
+        <label style="margin-top:12px">Design a voice</label>
+        <input type="text" id="vName" value="Mage" placeholder="Name" style="margin-bottom:6px">
+        <div class="seg2" style="margin-bottom:6px">${sel("gender", "male")}${sel("age", "young adult")}</div>
+        <div class="seg2">${sel("pitch", "moderate pitch")}${sel("accent", "")}</div>`}
+        <div class="actions" style="margin-top:10px">${vo.state === "not_installed" ? "" : `<button class="small" id="vMake" ${busy ? "disabled" : ""}>${busy ? "Working…" : "Create voice"}</button>`}<button class="ghost small" id="closePop">Close</button></div>
+        <small class="hint">Each take sounds a little different: press ↻ until it's right. Every video then uses exactly this voice, in English and Kiswahili.</small>`;
+      const make = async (name, instruct) => {
+        try { await api("/api/voices", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({name, instruct})}); }
+        catch (e) { alert(e.message); }
+        health();
+      };
+      if ($("#vMake")) $("#vMake").onclick = () => make($("#vName").value, [...pop.querySelectorAll("[data-va]")].map(x => x.value).filter(Boolean).join(", "));
+      pop.querySelectorAll("[data-redo]").forEach(b => b.onclick = () => { const v = vo.voices.find(x => x.id === b.dataset.redo); make(v.name, v.instruct); });
+      pop.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => { await api(`/api/voices/${encodeURIComponent(b.dataset.del)}`, {method: "DELETE"}); health(); });
+      pop.querySelectorAll("[data-play]").forEach(b => b.onclick = () => { showPop.audio?.pause(); showPop.audio = new Audio(`/api/voices/${encodeURIComponent(b.dataset.play)}/sample.wav?m=${b.dataset.made}`); showPop.audio.play(); });
+    }
   } else {
     const r = s.resolve, cls = (STATUS.resolve[r.state] || ["warn"])[0];
     const fix = r.state === "connected" ? "" : `<ol>
@@ -361,7 +401,7 @@ function showPop(which) {
       <div class="actions"><button class="ghost small" id="recheckResolve">Re-check</button><button class="ghost small" id="closePop">Close</button></div>`;
     $("#recheckResolve").onclick = health;
   }
-  $("#closePop").onclick = () => { popFor = null; pop.hidden = true; };
+  $("#closePop").onclick = () => { popFor = null; pop.hidden = true; delete pop.dataset.voiceKey; };
 }
 $("#pillClaude").onclick = () => popFor === "claude" ? $("#closePop").click() : showPop("claude");
 $("#pillResolve").onclick = () => popFor === "resolve" ? $("#closePop").click() : showPop("resolve");
@@ -381,11 +421,20 @@ function showPreview() {
 }
 try { $("#footage").value = localStorage.getItem("refcut.footage") || ""; } catch {}
 
-let mode = "kinetic", storySrc = "resolve", storyStyle = "short";
-try { mode = localStorage.getItem("refcut.mode") || "kinetic"; } catch {}
+let mode = "story", storySrc = "resolve", storyStyle = "short";
+try { mode = localStorage.getItem("refcut.mode") || "story"; } catch {}
+const MODE_HINTS = {
+  story: "You talk on camera or over a screen recording. RefCut cuts it into a short or a YouTube story.",
+  kinetic: "Text-only, Apple-style: launch videos and ads, cut to music.",
+  mascot: "Faceless: Mage hosts, a generated voice narrates.",
+  footage: "Recreate a reference edit's rhythm and look with your own clips.",
+};
 function setMode(m) {
   mode = m; document.body.className = "mode-" + m;
   document.querySelectorAll("#modeTabs button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
+  $("#refMode").classList.toggle("on", m === "footage");
+  $("#refMode").textContent = m === "footage" ? "Match a reference edit (back to the three modes above)" : "Other: match a reference edit";
+  $("#modeHint").textContent = MODE_HINTS[m] || "";
   $("#context").placeholder = {
     kinetic: "e.g. launch video for Mali Daftari's offline sync. 20s, calm then punchy. End on 'Available today.'",
     story: "e.g. day 12 of building Mali Daftari: I got offline sync working. TikTok short, hook with the demo, Mage reacts when it works",
@@ -396,6 +445,7 @@ function setMode(m) {
   try { localStorage.setItem("refcut.mode", m); } catch {}
 }
 document.querySelectorAll("#modeTabs button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+$("#refMode").onclick = e => { e.preventDefault(); setMode(mode === "footage" ? "story" : "footage"); };
 setMode(mode);
 
 $("#musicBtn").onclick = () => $("#musicFile").click();
@@ -836,9 +886,9 @@ async function readTimeline() {
          <small>${esc(t.names.join(", "))}</small> <a href="#" id="tlRead">Re-read</a>`
       : `${esc(t.error)} <a href="#" id="tlRead">Try again</a>`;
   } catch (e) { card.innerHTML = `${esc(e.message)} <a href="#" id="tlRead">Try again</a>`; }
-  document.querySelector("#tlRead").onclick = e => { e.preventDefault(); readTimeline(); };
 }
-document.querySelector("#tlRead").onclick = e => { e.preventDefault(); readTimeline(); };
+// one handler on the card: the link inside is re-created every time the card is redrawn
+document.querySelector("#tlCard").onclick = e => { if (e.target.id === "tlRead") { e.preventDefault(); readTimeline(); } };
 try { $("#useMage").checked = localStorage.getItem("refcut.mage") === "1"; $("#sSpoken").value = localStorage.getItem("refcut.spoken") || "auto"; } catch {}
 { // Mage icon on the toggle: the idle pose
   const c = $("#mageIcon"), g = c.getContext("2d");

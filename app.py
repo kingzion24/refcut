@@ -29,7 +29,8 @@ JOBS = ROOT / "jobs"
 JOBS.mkdir(exist_ok=True)
 
 SETTINGS = ROOT / "settings.json"
-DEFAULT_SETTINGS = {"text_scale": 0.5, "font": "Segoe UI", "whisper_model": "base", "voice_url": voice.DEFAULT_URL}
+DEFAULT_SETTINGS = {"text_scale": 0.5, "font": "Segoe UI", "whisper_model": "base", "voice_engine": "builtin",
+                    "voice_url": voice.DEFAULT_URL}
 WHISPER_MODELS = ("tiny", "base", "small", "medium", "large-v3-turbo")
 
 app = FastAPI(title="RefCut")
@@ -198,12 +199,12 @@ def _voice_job(jid):
     st = load(jid)
     update(jid, status="voicing", error=None, progress="Generating the voice")
     try:
-        n = mascot.make_voices(st["blueprint"], JOBS / jid, settings()["whisper_model"], settings()["voice_url"],
+        n = mascot.make_voices(st["blueprint"], JOBS / jid, settings()["whisper_model"], settings(),
                                lambda msg, pct: update(jid, progress=msg, pct=60 + int(pct * 0.4)))
         update(jid, status="ready", progress=f"Voice ready ({n} lines)", pct=100)
     except Exception as e:
         update(jid, status="ready", pct=100, progress="Script ready — voice not generated",
-               error=f"{e} The script and scenes are ready; click “Generate voice” once VoiceStudio is open.")
+               error=f"{e} The script and scenes are ready; click “Generate voice” when the voice is set up.")
 
 
 def _voice_missing(st):
@@ -373,12 +374,48 @@ def make_voice(jid: str):
         raise HTTPException(400, "Only mascot videos have a generated voice")
     if st.get("status") in ("voicing", "building", "refining"):
         raise HTTPException(409, "Busy — wait for the current step to finish")
-    vs = voice.status(settings()["voice_url"])
+    vs = voice.status(settings())
     if vs["state"] != "connected":
         raise HTTPException(503, vs["detail"])
     update(jid, status="voicing", progress="Generating the voice")
     threading.Thread(target=_voice_job, args=(jid,), daemon=True).start()
     return {"ok": True}
+
+
+class VoiceDesign(BaseModel):
+    name: str = "Mage"
+    instruct: str = "male, young adult, moderate pitch"
+    text: str = ""
+
+
+@app.post("/api/voices")
+def design_voice(body: VoiceDesign):
+    """Make (or remake) a voice from a description; progress shows in /api/status → voice.task."""
+    if voice.engine(settings()) != "builtin":
+        raise HTTPException(400, "Voices are made in VoiceStudio while it is the selected engine")
+    allowed = {a for group in voice.ATTRIBUTES.values() for a in group if a}
+    parts = [p.strip().lower() for p in body.instruct.split(",") if p.strip()]
+    if not parts or any(p not in allowed for p in parts):
+        raise HTTPException(400, "Describe the voice with the listed options (gender, age, pitch, accent)")
+    try:
+        voice.design_async(body.name[:40], ", ".join(parts), body.text[:300], settings())
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+    return {"ok": True}
+
+
+@app.delete("/api/voices/{voice_id}")
+def delete_voice(voice_id: str):
+    voice.delete(voice_id)
+    return {"ok": True}
+
+
+@app.get("/api/voices/{voice_id}/sample.wav")
+def voice_sample(voice_id: str):
+    p = (voice.VOICES / voice_id / "sample.wav").resolve()
+    if p.parent.parent != voice.VOICES.resolve() or not p.is_file():
+        raise HTTPException(404)
+    return FileResponse(p, headers={"Cache-Control": "no-store"})
 
 
 def _mascot_compiled(st, with_audio=True):
@@ -521,6 +558,8 @@ def put_settings(body: dict):
         s["font"] = str(body["font"])[:80]
     if body.get("whisper_model") in WHISPER_MODELS:
         s["whisper_model"] = body["whisper_model"]
+    if body.get("voice_engine") in ("builtin", "voicestudio"):
+        s["voice_engine"] = body["voice_engine"]
     if str(body.get("voice_url") or "").startswith("http"):
         s["voice_url"] = str(body["voice_url"]).rstrip("/")[:200]
     SETTINGS.write_text(json.dumps(s, indent=1), encoding="utf-8")
@@ -662,7 +701,7 @@ _skills = []
 @app.get("/api/status")
 def status():
     return {"claude": dict(_claude), "resolve": _resolve_status(), "ffmpeg": bool(shutil.which("ffmpeg")),
-            "skills": _skills, "broll_runtime": broll.runtime_status(), "voice": voice.status(settings()["voice_url"])}
+            "skills": _skills, "broll_runtime": broll.runtime_status(), "voice": voice.status(settings())}
 
 
 @app.post("/api/status/claude")

@@ -25,10 +25,15 @@ def _meta(skill_dir):
     except OSError:
         return out
     if text.startswith("---"):
+        key = None
         for line in text.split("---", 2)[1].splitlines():
+            if line[:1] in (" ", "\t") and key:           # continuation of a folded / multi-line value
+                out[key] = (out[key] + " " + line.strip()).strip()
+                continue
             k, _, v = line.partition(":")
-            if k.strip() in out and v.strip():
-                out[k.strip()] = v.strip()
+            key = k.strip() if k.strip() in out else None
+            if key:
+                out[key] = "" if v.strip() in (">", "|", ">-", "|-") else v.strip()
     return out
 
 
