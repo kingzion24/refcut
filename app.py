@@ -1,5 +1,6 @@
 """RefCut — reference-driven editing for DaVinci Resolve. Local web UI."""
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -42,20 +43,31 @@ def _state_path(jid):
     return JOBS / jid / "state.json"
 
 
+def _finite(o):
+    """NaN / inf -> None: json.dumps writes them to state.json, but the API's strict JSON response can't."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _finite(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_finite(v) for v in o]
+    return o
+
+
 def load(jid):
     with _lock:
         if jid not in _jobs:
             p = _state_path(jid)
             if not p.exists():
                 raise HTTPException(404, "job not found")
-            _jobs[jid] = json.loads(p.read_text(encoding="utf-8"))
+            _jobs[jid] = _finite(json.loads(p.read_text(encoding="utf-8")))
         return _jobs[jid]
 
 
 def update(jid, **kw):
     with _lock:
         st = _jobs[jid]
-        st.update(kw)
+        st.update(_finite(kw))
         st["updated"] = time.time()
         _state_path(jid).write_text(json.dumps(st, indent=1), encoding="utf-8")
         return st

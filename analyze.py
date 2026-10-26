@@ -100,8 +100,9 @@ def color_stats(img_path):
     luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
     mx, mn = a.max(-1), a.min(-1)
     sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1e-6), 0)
-    shadows = a[luma < np.percentile(luma, 20)].mean(0) if luma.size else np.zeros(3)
-    highs = a[luma > np.percentile(luma, 80)].mean(0) if luma.size else np.zeros(3)
+    # <= / >= so a flat frame (plain black, as in kinetic type) still selects pixels instead of averaging nothing -> NaN
+    shadows = a[luma <= np.percentile(luma, 20)].mean(0) if luma.size else np.zeros(3)
+    highs = a[luma >= np.percentile(luma, 80)].mean(0) if luma.size else np.zeros(3)
     return {
         "brightness": round(float(luma.mean()), 3),
         "contrast": round(float(luma.std()), 3),

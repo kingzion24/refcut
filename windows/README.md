@@ -1,42 +1,87 @@
 # RefCut
 
-Show it a reference, add a line of context. RefCut works out the recipe and builds it in
-DaVinci Resolve (Free). Three modes, chosen at the top of the left panel (plus *Match a reference edit* under the mode bar):
+Describe a video; Claude plans it, you preview and adjust it in the browser, and RefCut builds it in
+DaVinci Resolve (the free version is fine). Three modes, chosen at the top of the left panel:
 
-- **Kinetic text**: Apple-style text-only videos, built as keyframed **Fusion comps** (one per scene).
-- **Talking video**: dev logs and feature walkthroughs. Put long footage on a Resolve timeline and
-  describe the video; Claude cuts it tight with a hook, cards, callouts and captions, on a new timeline.
+- **Talking video**: dev logs, feature updates and long YouTube stories. Put your footage on a Resolve
+  timeline and describe the video; Claude cuts it, with cards, callouts and captions, on a new timeline.
+- **Kinetic text**: Apple-style text-only videos, built as editable Fusion animations.
 - **Mascot video**: faceless explainers. Claude writes the script, the built-in voice speaks it, Mage hosts.
-- **Match a ref**: recreate a reference edit's pacing, beat sync, structure and look with your clips.
 
-Tick **Feature Mage** to add Mali Daftari's mascot as a motion character in kinetic and talking videos.
-**Add motion B-roll** (talking videos) has Claude design animated cutaways timed to your words, using the
-bundled `motion-broll` skill.
+(*Match a reference edit* is a link under the mode bar.)
 
-```
-Browser UI (localhost:7860)
-  ├─ analyze.py   cuts · beats/energy · colour · Whisper · contact sheets (dense frames for kinetic refs)
-  ├─ brain.py     claude -p → motion script / edit blueprint → chat to adjust
-  ├─ kinetic.py   motion script → keyframe tracks → Fusion .comp files (+ the live browser preview)
-  ├─ story.py     talking videos: edit plan + transcript → word-snapped cuts, cards, overlays, captions
-  ├─ mage.py      Mage: moods, blinks, glasses → transparent PNG sequences
-  ├─ mascot.py    mascot videos: voiced script → scenes timed to the voice
-  ├─ voice.py     the built-in voice (OmniVoice): design a voice once, speak each line
-  ├─ broll.py     motion B-roll: Claude + the bundled motion-broll skill → clips on their own track
-  ├─ skills/      skills RefCut installs into this machine's Claude (skillset.py)
-  └─ build        CursorBridge inside Resolve → project, timeline, clips, comps
+## Install on Windows
+
+You need Windows 10 or 11, an internet connection, and about 10 GB of free disk space. The whole install
+takes 20–40 minutes, most of it downloads.
+
+**1. Install DaVinci Resolve** (version 18 or newer; the free one is fine) from
+<https://www.blackmagicdesign.com/products/davinciresolve>. Open it once, create any project, then close it.
+
+**2. Install Claude Code.** Open **PowerShell** (Start menu → type "PowerShell") and run:
+
+```powershell
+irm https://claude.ai/install.ps1 | iex
 ```
 
-## Setup (Windows)
+Close PowerShell, open it again, and run `claude`. Log in with your Claude account in the browser window
+that opens. When Claude Code shows its prompt, type `/exit`. If it asks for **Git for Windows**, install that
+from <https://git-scm.com/download/win> (default options) and run `claude` again.
 
-1. Install DaVinci Resolve 18+ (Free is fine) and Claude Code (`irm https://claude.ai/install.ps1 | iex`,
-   then run `claude` once to log in).
-2. Copy this `refcut` folder to the machine and double-click **setup.bat**.
-3. Double-click **start.bat**. The UI opens at http://localhost:7860.
+**3. Put this folder somewhere permanent.** Unzip `refcut-windows.zip` so you have a `refcut` folder, for
+example `C:\Users\<you>\Desktop\refcut`. Don't run it from inside the zip.
 
-**Updating from an older RefCut:** copy the new folder over the old one, run **setup.bat** again (it copies
-the new CursorBridge into Resolve), then in Resolve run **Workspace → Scripts → CursorBridge** again.
-Talking videos need this new bridge.
+**4. Run setup.** Make sure Resolve is closed, open the `refcut` folder and double-click **`setup.bat`**.
+If Windows shows "Windows protected your PC", click **More info → Run anyway**. Setup installs, when missing:
+
+| What | Size |
+|---|---|
+| Python 3.12, ffmpeg, Node.js (through `winget`, may ask for permission) | small |
+| RefCut's Python packages, in `refcut\venv` | ~3 GB |
+| The script that lets RefCut control Resolve (CursorBridge) | tiny |
+| RefCut's bundled Claude skills | tiny |
+| The motion B-roll renderer | ~150 MB |
+| The voice model for mascot videos | 3.3 GB |
+
+Wait until it prints **Done**, then press a key to close the window. If it says ffmpeg or Node.js was
+installed but can't be found, close the window and double-click `setup.bat` once more.
+
+**5. Connect Resolve.** Open DaVinci Resolve and a project. In the top menu choose
+**Workspace → Scripts → CursorBridge**. A console window says `Bridge is running`; you can close that
+console. Do this each time you open Resolve. If CursorBridge isn't in the menu, restart Resolve.
+
+**6. Start RefCut.** Double-click **`start.bat`**. A black window opens (leave it open) and your browser
+opens <http://localhost:7860>. Top right, the **Claude** and **DaVinci** lights should turn green within a
+few seconds. Click a light to see what's wrong if it doesn't.
+
+**7. For mascot videos, make Mage's voice (once).** Click the **Voice** light, choose gender, age and pitch,
+and click **Create voice**. Press ▶ to listen and ↻ for another take.
+
+That's it. Each later session is: open Resolve → **Workspace → Scripts → CursorBridge** → `start.bat`.
+
+### If something goes wrong
+
+| Problem | Fix |
+|---|---|
+| `setup.bat` says `winget` isn't recognised | Install **App Installer** from the Microsoft Store, then run `setup.bat` again |
+| `start.bat` says "RefCut isn't set up yet" | `setup.bat` didn't finish. Run it again and read the last lines it prints |
+| **Claude** light red | Run `claude` in PowerShell and log in, then click the light → **Re-check** |
+| **DaVinci** light amber | Resolve is open but the bridge isn't: **Workspace → Scripts → CursorBridge** |
+| **DaVinci** light red | Resolve isn't open |
+| **Voice** light red | The voice engine didn't install: run `setup.bat` again, then restart `start.bat` |
+| Page won't open | Is the black `start.bat` window still open? Open <http://localhost:7860> yourself |
+
+### Updating later
+
+Unzip the new `refcut-windows.zip` over the old `refcut` folder (your jobs, voices and settings are kept),
+run **`setup.bat`** again, and in Resolve run **Workspace → Scripts → CursorBridge** again so it loads the
+new bridge.
+
+### Removing it
+
+Delete the `refcut` folder. To also remove the bundled skills from Claude, delete `motion-broll` and
+`agent-reach` in `%USERPROFILE%\.claude\skills\`. The voice model is in
+`%USERPROFILE%\.cache\huggingface\hub\models--k2-fsa--OmniVoice`.
 
 ## Status lights (top right)
 
@@ -135,3 +180,20 @@ per-clip CDL grade. By hand: transitions, keyframes/speed ramps, title text.
 - Jobs live in `jobs/`, settings in `settings.json`. Delete old jobs freely.
 - `vendor/davinci-resolve-mcp` is [hiteshK03/davinci-resolve-mcp](https://github.com/hiteshK03/davinci-resolve-mcp) (MIT),
   pinned to `mcp<2`, with added `/refcut/*` endpoints in `CursorBridge.py`.
+
+## How it's put together
+
+```
+Browser UI (localhost:7860)
+  ├─ analyze.py   cuts · beats/energy · colour · Whisper · contact sheets (dense frames for kinetic refs)
+  ├─ brain.py     claude -p → motion script / edit blueprint → chat to adjust
+  ├─ kinetic.py   motion script → keyframe tracks → Fusion .comp files (+ the live browser preview)
+  ├─ story.py     talking videos: edit plan + transcript → word-snapped cuts, cards, overlays, captions
+  ├─ mage.py      Mage: moods, blinks, glasses → transparent PNG sequences
+  ├─ mascot.py    mascot videos: voiced script → scenes timed to the voice
+  ├─ voice.py     the built-in voice (OmniVoice): design a voice once, speak each line
+  ├─ broll.py     motion B-roll: Claude + the bundled motion-broll skill → clips on their own track
+  ├─ skills/      skills RefCut installs into this machine's Claude (skillset.py)
+  └─ build        CursorBridge inside Resolve → project, timeline, clips, comps
+```
+
