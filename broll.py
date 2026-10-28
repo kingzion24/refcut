@@ -111,6 +111,18 @@ def _review_copy(tl, spec, sources, job_dir, out):
     shutil.rmtree(parts, ignore_errors=True)
 
 
+def words_txt(words, fps):
+    """One line per sentence / timeline item, `seconds:word` like the skill's words.py."""
+    lines, cur = [], []
+    for i, w in enumerate(words):
+        cur.append(f"{w['s'] / fps:.2f}:{w['w']}")
+        nxt = words[i + 1] if i + 1 < len(words) else None
+        if nxt is None or w["w"][-1:] in ".?!" or nxt["id"] != w["id"]:
+            lines.append(" ".join(cur))
+            cur = []
+    return "\n".join(lines) + "\n"
+
+
 def prepare(job_dir, spec, sources, captions, context, density, notes):
     """Write jobs/<id>/motion/{work/source.mp4, work/words.txt, brief.md}. Returns (motion_dir, spec, tl)."""
     spec, tl = story.compile_story(spec, sources, captions)
@@ -121,16 +133,8 @@ def prepare(job_dir, spec, sources, captions, context, density, notes):
     for d in ("clips", "dist", "out", "work"):
         (motion / d).mkdir(parents=True)
     _review_copy(tl, spec, sources, job_dir, motion / "work" / "source.mp4")
-
     words = story.timeline_words(tl["v1"], sources, fps)
-    lines, cur = [], []
-    for i, w in enumerate(words):                 # one line per sentence / timeline item, time:word like the skill's words.py
-        cur.append(f"{w['s'] / fps:.2f}:{w['w']}")
-        nxt = words[i + 1] if i + 1 < len(words) else None
-        if nxt is None or w["w"][-1:] in ".?!" or nxt["id"] != w["id"]:
-            lines.append(" ".join(cur))
-            cur = []
-    (motion / "work" / "words.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (motion / "work" / "words.txt").write_text(words_txt(words, fps), encoding="utf-8")
 
     sec = lambda f: f"{f / fps:.2f}"
     said = {}
@@ -214,7 +218,6 @@ When `plan.json` is written, finish with a 2–4 line summary: which clips you m
 
 def run(job_dir, spec, sources, captions, context, density="medium", notes=""):
     """Generator of (kind, text) events while Claude makes the clips."""
-    import brain
     job_dir = Path(job_dir).resolve()
     skill = skillset.path(SKILL)
     yield from ensure_runtime()
@@ -228,11 +231,22 @@ def run(job_dir, spec, sources, captions, context, density="medium", notes=""):
     prompt = PROMPT.format(skill=skill.as_posix(), node_path=(RUNTIME / "node_modules").as_posix(),
                            python=Path(sys.executable).as_posix(), W=fmt["width"], H=fmt["height"], fps=fmt["fps"],
                            vertical=vertical)
+    yield from claude_stream(prompt, motion, [skill])
+    clips = collect(job_dir, tl)
+    yield ("done" if clips else "err"), (f"{len(clips)} B-roll clip{'s' if len(clips) != 1 else ''} ready — they're in the "
+                                         "preview and will be placed on their own track in Resolve."
+                                         if clips else "No clips were produced (no plan.json or no rendered files).")
+    return clips
+
+
+def claude_stream(prompt, cwd, add_dirs):
+    """Run `claude -p` headless in cwd (NODE_PATH set to the renderer), as (kind, text) log events."""
+    import brain
     env = os.environ | {"NODE_PATH": str(RUNTIME / "node_modules")}
     proc = subprocess.Popen(
-        [brain.claude_bin(), "-p", "--add-dir", str(skill), "--allowedTools", "Read,Write,Edit,Glob,Grep,Bash",
-         "--output-format", "stream-json", "--verbose"],
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=motion, env=env,
+        [brain.claude_bin(), "-p", *[a for d in add_dirs for a in ("--add-dir", str(d))],
+         "--allowedTools", "Read,Write,Edit,Glob,Grep,Bash", "--output-format", "stream-json", "--verbose"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd, env=env,
         text=True, encoding="utf-8", errors="replace")
     proc.stdin.write(prompt)
     proc.stdin.close()
@@ -257,11 +271,16 @@ def run(job_dir, spec, sources, captions, context, density="medium", notes=""):
     proc.wait()
     if proc.returncode:
         yield "err", f"claude exited with code {proc.returncode}"
-    clips = collect(job_dir, tl)
-    yield ("done" if clips else "err"), (f"{len(clips)} B-roll clip{'s' if len(clips) != 1 else ''} ready — they're in the "
-                                         "preview and will be placed on their own track in Resolve."
-                                         if clips else "No clips were produced (no plan.json or no rendered files).")
-    return clips
+
+
+def browser_preview(f):
+    """A file the browser preview can play: the clip itself, or for ProRes 4444 a 720p VP9 copy with alpha."""
+    if f.suffix.lower() == ".mp4":
+        return f
+    preview = f.with_suffix(".preview.webm")
+    r = _run([_ffmpeg(), "-y", "-i", str(f), "-vf", "scale=-2:720", "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p",
+              "-b:v", "1M", "-deadline", "realtime", "-cpu-used", "8", "-an", str(preview)])
+    return None if r.returncode else preview
 
 
 def collect(job_dir, tl):
@@ -292,13 +311,7 @@ def collect(job_dir, tl):
         except ValueError:
             continue
         kind = "panel" if (c.get("kind") == "panel" or f.suffix.lower() == ".mov") else "full"
-        preview = f
-        if f.suffix.lower() != ".mp4":            # ProRes 4444 doesn't play in a browser: VP9 with alpha for the preview
-            preview = f.with_suffix(".preview.webm")
-            r = _run([_ffmpeg(), "-y", "-i", str(f), "-vf", "scale=-2:720", "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p",
-                      "-b:v", "1M", "-deadline", "realtime", "-cpu-used", "8", "-an", str(preview)])
-            if r.returncode:
-                preview = None
+        preview = browser_preview(f)
         out.append({"id": str(c.get("id") or i + 1), "title": str(c.get("title") or f.stem), "line": str(c.get("line") or ""),
                     "kind": kind, "anchor": host["id"], "at": round((start - host["start"]) / fps, 3),
                     "dur": round(t_out - t_in, 3), "frames": frames, "file": str(f),

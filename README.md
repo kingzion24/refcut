@@ -363,6 +363,26 @@ It never invents numbers or results: lists and charts use placeholder bars unles
 Needs **Node.js** (setup installs it). During this step Claude runs commands on your PC (Node, Python,
 ffmpeg) inside the job's `motion` folder.
 
+### Split explainer (vertical videos)
+
+For explaining something to camera in 9:16: drawings of what you're explaining fill the **top half**, you're
+in the **bottom half**, captions sit on the seam. After the edit plan is ready, click **Draw the explainer**
+(the card only shows for vertical edits).
+
+1. Claude splits what you say into beats, one idea each, and draws every beat as an animated page using
+   the skill that fits: **archify** (flows, systems, sequences, timelines), **anatomy** (how something works,
+   as an isometric machine) or **dimensional-drawing** (a UI or product taken apart). Each drawing builds up
+   as you say its parts.
+2. RefCut renders every drawing itself (`render_html.cjs`, headless Chrome, frame by frame) to the exact
+   length of its slot, so the drawings run end to end with no gaps, and never over a title card.
+3. In Resolve the drawings go on their own track (**Drawings**, ProRes 4444 with alpha) and your footage on V1
+   is moved down so your face sits in the bottom half. Pick where your face is in the recording (high,
+   upper middle, middle); changing it later moves you without redrawing.
+
+The three skills must be in `%USERPROFILE%\.claude\skills\` (`archify`, `anatomy`, `dimensional-drawing`).
+The drawings share the motion B-roll track, so it's one or the other. **After updating RefCut, copy the new
+`CursorBridge.py` into Resolve again** (or re-run setup): the bottom-half move needs it.
+
 ---
 
 ## 13. YouTube stories (long-form)

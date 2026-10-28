@@ -82,7 +82,7 @@ export class StoryPlayer {
       lane("callouts", p.overlays.filter(o => o.layer === "overlay" && o.scene.elements.some(e => e.el.kind === "text"))) +
       lane("cuts", p.cutaways || []) + lane("broll", p.broll || []) +
       lane("mage", chars) + lane("caps", p.overlays.filter(o => o.layer === "caption")) +
-      `<div class="sp-legend">${(p.cutaways || []).length ? `<span class="cuts">your B-roll</span>` : ""}${(p.broll || []).length ? `<span class="broll">motion B-roll</span>` : ""}<span class="callouts">callouts</span><span class="mage">Mage</span><span class="caps">captions</span></div>`;
+      `<div class="sp-legend">${(p.cutaways || []).length ? `<span class="cuts">your B-roll</span>` : ""}${(p.broll || []).length ? `<span class="broll">${p.split ? "drawings" : "motion B-roll"}</span>` : ""}<span class="callouts">callouts</span><span class="mage">Mage</span><span class="caps">captions</span></div>`;
     this.cur = null;
     this.layout();
     this.seek(Math.min(keep, this.total - 1));
@@ -138,7 +138,8 @@ export class StoryPlayer {
       this.cardEl.style.display = "none";
       if (v) {
         v.style.display = "";
-        v.style.transform = `scale(${x.zoom})`;
+        // tilt (split explainer): Resolve px of the full frame, + is up
+        v.style.transform = `translateY(${-(x.tilt || 0) / this.spec.format.height * H}px) scale(${x.zoom})`;
         const want = x.src_in - (src?.offset || 0) + (f - x.start) / this.fps;
         if (hard || this.cur !== i || Math.abs(v.currentTime - want) > 0.25) v.currentTime = Math.max(0, want);
         if (this.playing && v.paused) v.play().catch(() => {});
