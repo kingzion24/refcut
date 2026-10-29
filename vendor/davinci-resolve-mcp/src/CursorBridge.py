@@ -2999,6 +2999,8 @@ def action_refcut_story(body):
                 if abs(z - 1) > 0.001:
                     safe(lambda: it.SetProperty("ZoomX", z))
                     safe(lambda: it.SetProperty("ZoomY", z))
+                if x.get("tilt"):               # split explainer: the face moved into the bottom half
+                    safe(lambda: it.SetProperty("Tilt", float(x["tilt"])))
                 clips += 1
         else:
             if not placeholder:

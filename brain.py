@@ -673,13 +673,13 @@ def placeholder_clip(job_dir, fmt, frames):
     return ph
 
 
-def build_story(job_dir, spec, sources, timeline_name, text_scale, captions, broll=None, music_path=None):
+def build_story(job_dir, spec, sources, timeline_name, text_scale, captions, broll=None, music_path=None, split=None):
     """Deterministic: write comps / Mage sequences / captions, then one bridge call builds a new
     timeline in the project that's open in Resolve."""
     import story
     job_dir = Path(job_dir).resolve()
     yield "say", "Writing Fusion comps and rendering Mage…"
-    spec, body = story.write_build(spec, sources, job_dir, text_scale, captions, broll, music_path)
+    spec, body = story.write_build(spec, sources, job_dir, text_scale, captions, broll, music_path, split)
     c = body.pop("counts")
     chapters = body.pop("chapters_text")
     yield "say", (f"{c['clips']} clips · {c['cards']} cards · {c['cutaways']} cutaways · {c['overlays']} overlays · "

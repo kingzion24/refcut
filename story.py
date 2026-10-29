@@ -11,6 +11,8 @@ plus the word-level transcript into frames:
     V4  burned captions (one transparent Fusion comp per caption, editable Text+)
 
 With motion B-roll (broll.py) the clips take V2, directly above the footage, and the other tracks move up one.
+A split explainer (explainer.py) uses the same track for its drawings, which fill the top half: the footage
+is moved down so the face sits in the bottom half, and the captions sit on the seam.
 
 The same compiled timeline drives the browser preview (static/story.js) and the Resolve build.
 """
@@ -23,6 +25,14 @@ import mage
 PAD_IN, PAD_OUT = 0.06, 0.12     # breathing room around the first / last word of a cut (s)
 SNAP_REACH = 0.6                  # only snap when a word boundary is this close (s)
 TRACK_V1 = 1
+SPLIT_FACE_AT = 0.73              # split explainer: where the face lands, as a fraction of the frame height
+SPLIT_CAPTION_Y = 0.5             # split explainer: captions on the seam between drawing and face
+
+
+def split_tilt(split, H):
+    """Vertical move (Resolve's Tilt, px, + is up) that puts the face at SPLIT_FACE_AT. split["face_y"] is
+    where the face is in the recording, as a fraction of its height."""
+    return round((float(split.get("face_y", 0.4)) - SPLIT_FACE_AT) * H)
 
 
 def tracks(has_broll, has_cutaways=False):
@@ -178,10 +188,14 @@ def snapped_range(it, src):
 
 # ─── compile ─────────────────────────────────────────────────────────────────
 
-def compile_story(spec, sources, captions="burned", broll=None):
+def compile_story(spec, sources, captions="burned", broll=None, split=None):
     """Plan -> frame-exact timeline. Returns the normalised spec and the compiled layers.
-    broll: motion B-roll clips ({anchor, at, dur, frames, ...}), each pinned to a timeline item."""
+    broll: motion B-roll clips ({anchor, at, dur, frames, ...}), each pinned to a timeline item.
+    split: {"face_y"} for a split explainer (broll then holds its top-half drawings)."""
     spec = normalize(spec, sources)
+    if split:
+        spec["captions"]["y"] = SPLIT_CAPTION_Y
+    tilt = split_tilt(split, spec["format"]["height"]) if split else 0
     if spec["fixes"]:                                  # captions use the corrected words; cuts keep the real timings
         sources = {sid: src | {"said": fixed_words(src, sid, spec["fixes"])} for sid, src in sources.items()}
     fps = spec["format"]["fps"]
@@ -199,7 +213,7 @@ def compile_story(spec, sources, captions="burned", broll=None):
             frames = max(1, int(round((b - a) * fps)))
             v1.append({"kind": "clip", "id": it["id"], "name": it["name"], "start": rec, "frames": frames,
                        "source": it["source"], "src_in": round(a, 3), "src_out": round(a + frames / fps, 3),
-                       "zoom": it["zoom"]})
+                       "zoom": it["zoom"], "tilt": tilt})
         rec += v1[-1]["frames"]
     total = rec
     by_id = {x["id"]: x for x in v1}
@@ -258,7 +272,7 @@ def compile_story(spec, sources, captions="burned", broll=None):
             clips.append({k: b.get(k) for k in ("id", "title", "line", "kind", "file", "preview")}
                          | {"start": start, "frames": frames, "name": b.get("title") or "B-roll"})
     return spec, {"fps": fps, "total": total, "v1": v1, "overlays": overlays, "captions": caps, "broll": clips,
-                  "cutaways": cutaways, "chapters": chapters}
+                  "cutaways": cutaways, "chapters": chapters, "split": bool(split)}
 
 
 def chapters_text(chapters, fps):
@@ -355,8 +369,8 @@ def srt(caps, fps):
 
 # ─── preview + build ─────────────────────────────────────────────────────────
 
-def preview_payload(spec, sources, jid, captions, broll=None, music_path=None, job_dir=None):
-    spec, tl = compile_story(spec, sources, captions, broll)
+def preview_payload(spec, sources, jid, captions, broll=None, music_path=None, job_dir=None, split=None):
+    spec, tl = compile_story(spec, sources, captions, broll, split)
     tl["chapters_text"] = chapters_text(tl["chapters"], tl["fps"])
     tl["music_url"] = None
     if music_path and job_dir and Path(music_path).is_file():
@@ -370,9 +384,9 @@ def preview_payload(spec, sources, jid, captions, broll=None, music_path=None, j
                         for k, s in sources.items() if s.get("proxy")}}
 
 
-def write_build(spec, sources, job_dir, text_scale, captions, broll=None, music_path=None):
+def write_build(spec, sources, job_dir, text_scale, captions, broll=None, music_path=None, split=None):
     """Write comps, character sequences and captions; return the bridge body minus the placeholder."""
-    spec, tl = compile_story(spec, sources, captions, broll)
+    spec, tl = compile_story(spec, sources, captions, broll, split)
     tr = tracks(bool(tl["broll"]), bool(tl["cutaways"]))
     fmt, fps = spec["format"], spec["format"]["fps"]
     W, H = fmt["width"], fmt["height"]
@@ -407,7 +421,7 @@ def write_build(spec, sources, job_dir, text_scale, captions, broll=None, music_
         else:
             src = sources[x["source"]]
             v1.append({"kind": "clip", "path": src["path"], "src_in": x["src_in"], "src_out": x["src_out"],
-                       "frames": x["frames"], "zoom": x["zoom"], "name": x["name"]})
+                       "frames": x["frames"], "zoom": x["zoom"], "tilt": x["tilt"], "name": x["name"]})
     for ov in tl["overlays"]:
         if ov["layer"] == "caption":
             n += 1
@@ -437,7 +451,7 @@ def write_build(spec, sources, job_dir, text_scale, captions, broll=None, music_
                        "path": b["file"], "alpha": b["kind"] == "panel", "name": b["name"]})
         markers.append({"frame": b["start"], "color": "Purple", "name": "B-roll · " + b["name"]})
     names = {tr["text"]: "Callouts", tr["char"]: "Mage", tr["caps"]: "Captions"} | (
-        {tr["broll"]: "Motion B-roll"} if tl["broll"] else {}) | (
+        {tr["broll"]: "Drawings" if split else "Motion B-roll"} if tl["broll"] else {}) | (
         {tr["canvas"]: "Canvas", tr["cutaway"]: "B-roll"} if tl["cutaways"] else {})
     audio = []
     if music_path and Path(music_path).is_file():

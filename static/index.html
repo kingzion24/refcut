@@ -931,6 +931,12 @@ function renderStory(st) {
             <input type="text" id="brNotes" placeholder="Optional: what to show or avoid, real numbers to use, brand colours">
             <button class="ghost" id="brBtn">Add motion B-roll</button></div>
           <small class="hint" id="brHint"></small></div>
+        <div class="card" id="exCard" hidden><h3>Split explainer <span class="pill" style="float:right">archify · anatomy · dimensional-drawing</span></h3>
+          <div class="row">
+            <select id="exFace" style="width:170px" title="Where your face is in the recording"><option value="0.3">Face high in frame</option><option value="0.4" selected>Face in the upper middle</option><option value="0.5">Face in the middle</option></select>
+            <input type="text" id="exNotes" placeholder="Optional: what to draw or avoid, real numbers, brand colours">
+            <button class="ghost" id="exBtn">Draw the explainer</button></div>
+          <small class="hint" id="exHint"></small></div>
         <div id="knotes"></div>
         <div class="card"><h3>Adjust</h3><div class="chat" id="kchat"></div>
           <div class="row"><input type="text" id="refine" placeholder="e.g. tighter, open on the demo, add a card before the bug fix, Mage confused at the bug">
@@ -959,6 +965,19 @@ function renderStory(st) {
         logFrom = 0; logLines = [];
         clearInterval(poll); poll = setInterval(refresh, 1500); refresh();
       };
+      $("#exBtn").onclick = async () => {
+        try { await api(`/api/jobs/${st.id}/explainer`, {method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({face_y: +$("#exFace").value, notes: $("#exNotes").value})}); }
+        catch (e) { return alert(e.message); }
+        logFrom = 0; logLines = [];
+        clearInterval(poll); poll = setInterval(refresh, 1500); refresh();
+      };
+      $("#exFace").onchange = async () => {        // already split: just move the face, no redraw
+        if (!story.split) return;
+        await api(`/api/jobs/${st.id}/split`, {method: "PUT", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({face_y: +$("#exFace").value})});
+        story.split = {face_y: +$("#exFace").value}; loadStoryPreview();
+      };
       $("#sCapMode").value = st.captions || "burned";
       $("#sCapMode").onchange = async () => {
         await api(`/api/jobs/${st.id}/options`, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({captions: $("#sCapMode").value})});
@@ -983,17 +1002,19 @@ function renderStory(st) {
   }
   $("#kerr").innerHTML = st.error ? `<div class="err-box">${esc(st.error)}</div>` : "";
   $("#kchat").innerHTML = (st.chat || []).map(m => `<div class="msg ${m.role}">${esc(m.text)}</div>`).join("");
-  const busy = ["building", "refining", "broll"].includes(st.status);
+  const busy = ["building", "refining", "broll", "explainer"].includes(st.status);
   $("#refine").disabled = $("#refineBtn").disabled = busy;
   $("#refineBtn").textContent = st.status === "refining" ? "Revising…" : "Update";
   $("#buildBtn").disabled = busy;
   $("#buildBtn").textContent = st.status === "building" ? "Building…" : st.status === "built" ? "Rebuild" : "Build it";
-  // motion B-roll
-  const br = st.broll || [], brKey = JSON.stringify(br.map(c => c.id + c.anchor + c.at));
+  // motion B-roll / split-explainer drawings (they share the track: one or the other)
+  const br = st.broll || [], brKey = JSON.stringify(br.map(c => c.id + c.anchor + c.at)) + JSON.stringify(st.split || null);
+  story.split = st.split || null;
   if (brKey !== story.brKey) {
     const hadKey = story.brKey !== undefined;
     story.brKey = brKey;
-    $("#brList").innerHTML = br.map(c => `<div class="br-row"><span class="pill">${c.kind === "panel" ? "panel" : "cutaway"}</span>
+    if (st.split) $("#exFace").value = String(st.split.face_y);
+    $("#brList").innerHTML = br.map(c => `<div class="br-row"><span class="pill">${c.skill ? esc(c.skill) : c.kind === "panel" ? "panel" : "cutaway"}</span>
       <div><b>${esc(c.title)}</b> · ${(+c.dur).toFixed(1)}s<small>${esc(c.line)}</small></div>
       <button class="ghost small" data-br="${esc(c.id)}" title="Remove">✕</button></div>`).join("");
     $("#brList").querySelectorAll("[data-br]").forEach(b => b.onclick = async () => {
@@ -1007,6 +1028,14 @@ function renderStory(st) {
   $("#brHint").textContent = st.status === "broll" ? "Claude is designing, checking and rendering each clip. This takes several minutes; progress is in the log below."
     : rt?.state === "no_node" ? rt.detail
     : `Claude designs animated cutaways and panels timed to your words, then renders them (several minutes). ${rt?.state === "not_installed" ? rt.detail + " " : ""}Made for the current cut — redo it if you change the edit a lot.`;
+  const fmt = story.bp?.format || {};
+  $("#exCard").hidden = !(fmt.height > fmt.width);
+  $("#exBtn").disabled = busy;
+  $("#exBtn").textContent = st.status === "explainer" ? "Drawing…" : st.split && br.length ? "Redraw the explainer" : "Draw the explainer";
+  $("#exHint").textContent = st.status === "explainer"
+    ? "Claude is drawing each idea, then RefCut renders the drawings. This takes several minutes; progress is in the log below."
+    : st.split ? "Drawings fill the top half, you're in the bottom half, captions on the seam. Change the face setting to move yourself up or down without redrawing. It replaces motion B-roll (same track)."
+    : "For vertical explainers: Claude draws what you're explaining, one drawing per idea, timed to your words, in the top half; you move to the bottom half. Replaces motion B-roll if you have any.";
   const log = $("#log");
   if (logLines.length) {
     log.style.display = "block";

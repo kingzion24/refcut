@@ -456,7 +456,7 @@ def preview(jid: str):
         raise HTTPException(404, "No motion script yet")
     if st.get("mode") == "story":
         return story.preview_payload(st["blueprint"], st["talk"]["sources"], jid, st.get("captions", "burned"),
-                                     st.get("broll"), st.get("music_path"), JOBS / jid)
+                                     st.get("broll"), st.get("music_path"), JOBS / jid, st.get("split"))
     if st.get("mode") == "mascot":
         spec, info, _ = _mascot_compiled(st, with_audio=False)
         return kinetic.preview_payload(spec) | {
@@ -488,7 +488,7 @@ def make_broll(jid: str, body: Broll):
     st = load(jid)
     if st.get("mode") != "story" or not st.get("blueprint"):
         raise HTTPException(400, "Motion B-roll needs a talking-video edit plan")
-    if st.get("status") in ("building", "refining", "broll"):
+    if st.get("status") in ("building", "refining", "broll", "explainer"):
         raise HTTPException(409, "Busy — wait for the current step to finish")
     rt = broll.runtime_status()
     if rt["state"] == "no_node":
@@ -508,13 +508,75 @@ def make_broll(jid: str, body: Broll):
                     break
                 append_log(jid, kind, text)
             update(jid, status="ready", progress="Motion B-roll ready" if clips else "No B-roll made",
-                   **({"broll": clips} if clips else {}))
+                   **({"broll": clips, "split": None} if clips else {}))
         except Exception as e:
             traceback.print_exc()
             append_log(jid, "err", str(e))
             update(jid, status="ready", progress="Motion B-roll failed")
     threading.Thread(target=run, daemon=True).start()
     return {"ok": True}
+
+
+class Explainer(BaseModel):
+    face_y: float = 0.4
+    notes: str = ""
+
+
+@app.post("/api/jobs/{jid}/explainer")
+def make_explainer(jid: str, body: Explainer):
+    """Split explainer: Claude draws what you're explaining (archify / anatomy / dimensional-drawing skills)
+    for the top half; RefCut renders the drawings and moves your footage into the bottom half."""
+    import explainer
+    st = load(jid)
+    if st.get("mode") != "story" or not st.get("blueprint"):
+        raise HTTPException(400, "The split explainer needs a talking-video edit plan")
+    if st.get("status") in ("building", "refining", "broll", "explainer"):
+        raise HTTPException(409, "Busy — wait for the current step to finish")
+    fmt = st["blueprint"].get("format") or {}
+    if (fmt.get("height") or 0) <= (fmt.get("width") or 0):
+        raise HTTPException(400, "The split explainer is for vertical video: make the edit 9:16 first")
+    rt = broll.runtime_status()
+    if rt["state"] == "no_node":
+        raise HTTPException(503, rt["detail"])
+    try:
+        explainer.skill_dirs()
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
+    split = {"face_y": min(0.7, max(0.15, body.face_y))}
+    update(jid, status="explainer", build_log=[], progress="Drawing the explainer", error=None)
+
+    def run():
+        try:
+            gen = explainer.run(JOBS / jid, st["blueprint"], st["talk"]["sources"], st.get("captions", "burned"),
+                                st.get("context", ""), body.notes, split)
+            clips = []
+            while True:
+                try:
+                    kind, text = next(gen)
+                except StopIteration as stop:
+                    clips = stop.value or []
+                    break
+                append_log(jid, kind, text)
+            update(jid, status="ready", progress="Split explainer ready" if clips else "No drawings made",
+                   **({"broll": clips, "split": split} if clips else {}))
+        except Exception as e:
+            traceback.print_exc()
+            append_log(jid, "err", str(e))
+            update(jid, status="ready", progress="Split explainer failed")
+    threading.Thread(target=run, daemon=True).start()
+    return {"ok": True}
+
+
+class Split(BaseModel):
+    face_y: float | None = None
+
+
+@app.put("/api/jobs/{jid}/split")
+def put_split(jid: str, body: Split):
+    """Move the face up or down in the bottom half, or (face_y null) go back to full-frame footage."""
+    load(jid)
+    update(jid, split=None if body.face_y is None else {"face_y": min(0.7, max(0.15, body.face_y))})
+    return {"ok": True, "split": load(jid).get("split")}
 
 
 @app.delete("/api/jobs/{jid}/broll/{clip_id}")
@@ -529,7 +591,7 @@ def captions_srt(jid: str):
     st = load(jid)
     if st.get("mode") != "story" or not st.get("blueprint"):
         raise HTTPException(404)
-    spec, tl = story.compile_story(st["blueprint"], st["talk"]["sources"], "srt")
+    spec, tl = story.compile_story(st["blueprint"], st["talk"]["sources"], "srt", split=st.get("split"))
     p = JOBS / jid / "captions.srt"
     p.write_text(story.srt(tl["captions"], tl["fps"]), encoding="utf-8")
     return FileResponse(p, filename=f"{(spec.get('title') or jid)[:40]}.srt")
@@ -599,7 +661,7 @@ def build(jid: str, body: Build):
         project = body.project.strip() or st["blueprint"].get("title") or "RefCut edit"
         events = lambda: brain.build_story(JOBS / jid, st["blueprint"], st["talk"]["sources"], project,
                                            settings()["text_scale"], st.get("captions", "burned"), st.get("broll"),
-                                           st.get("music_path"))
+                                           st.get("music_path"), st.get("split"))
     elif st.get("mode") == "mascot":
         spec_c, info, audio = _mascot_compiled(st)
         if info["missing"]:

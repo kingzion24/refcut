@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "refcut-windows.zip"
 FILES = ["app.py", "analyze.py", "brain.py", "kinetic.py", "story.py", "mage.py", "broll.py", "skillset.py",
-         "mascot.py", "voice.py", "requirements.txt", "setup.bat", "setup.ps1", "start.bat", "LICENSE",
+         "mascot.py", "voice.py", "explainer.py", "render_html.cjs", "requirements.txt", "setup.bat", "setup.ps1", "start.bat", "LICENSE",
          "static/index.html", "static/kinetic.js", "static/story.js",
          "vendor/davinci-resolve-mcp/LICENSE", "vendor/davinci-resolve-mcp/README.md",
          "vendor/davinci-resolve-mcp/src/CursorBridge.py", "vendor/davinci-resolve-mcp/src/resolve_mcp_bridge.py"]
